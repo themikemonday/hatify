@@ -41,8 +41,9 @@
 	}
 	.pill[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); font-weight: 600; }
 
-	#sorts { display: flex; gap: .4rem; overflow-x: auto; padding: .5rem .8rem; scrollbar-width: none; }
-	#sorts::-webkit-scrollbar { display: none; }
+	#sorts, #kinds { display: flex; gap: .4rem; overflow-x: auto; padding: .5rem .8rem; scrollbar-width: none; }
+	#sorts { padding-top: 0; }
+	#sorts::-webkit-scrollbar, #kinds::-webkit-scrollbar { display: none; }
 
 	#shelf { padding: 0 .8rem var(--bar-h); }
 
@@ -100,7 +101,20 @@
 	#bar .t { font-weight: 600; font-size: .88rem; }
 	#bar .a { color: var(--dim); font-size: .78rem; }
 	#bar .t, #bar .a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-	#bar button { font-size: 1.3rem; padding: .3rem .5rem; }
+	/* Transport keys, not phone icons. Squared-off, slightly proud of the deck, with
+	   a lit top edge and a shadow under — the feel of a tape deck's piano keys. */
+	.key {
+		width: 46px; height: 38px; border-radius: 4px; flex: none;
+		background: linear-gradient(#3a3a42, #232329);
+		border: 1px solid #4a4a54; border-top-color: #6a6a76;
+		box-shadow: 0 2px 0 #101014, inset 0 1px 0 rgba(255,255,255,.16);
+		display: grid; place-items: center; padding: 0;
+		transition: transform .06s, box-shadow .06s;
+	}
+	.key:active { transform: translateY(2px); box-shadow: 0 0 0 #101014, inset 0 1px 3px rgba(0,0,0,.5); }
+	.key svg { width: 17px; height: 17px; fill: #e8e8ec; }
+	.key.play { width: 56px; }
+	.key.play svg { fill: var(--accent); }
 
 	/* Peek: hold a cover to pull it out of the sleeve, release to drop it back.
 	   Answers "I want them bigger" without a detail screen, a back button, or
@@ -150,6 +164,38 @@
 	#saved { margin-top: 1rem; font-size: .84rem; color: var(--dim); }
 	#saved > div { padding: .4rem 0; border-top: 1px solid var(--line); }
 	button.mini { font-size: .74rem; padding: .22rem .5rem; color: var(--accent); border: 1px solid var(--line); border-radius: 6px; }
+
+	#settings[hidden], #album[hidden] { display: none; }
+	#settings, #album { position: fixed; inset: 0; z-index: 35; background: rgba(0,0,0,.65); display: flex; align-items: flex-end; justify-content: center; }
+	#settings .sheet, #album .sheet {
+		background: var(--panel); width: 100%; max-width: 40rem; border-radius: 16px 16px 0 0;
+		border-top: 1px solid var(--line); padding: 1.1rem 1.1rem calc(1.1rem + env(safe-area-inset-bottom));
+		max-height: 90vh; overflow-y: auto;
+	}
+	#settings h2 { font-size: 1.05rem; margin: 0 0 .8rem; }
+	.setting { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .6rem 0; border-bottom: 1px solid var(--line); }
+	.setting input[type=range] { flex: 1; max-width: 60%; accent-color: var(--accent); }
+	#settings .row { display: flex; gap: .5rem; margin-top: 1rem; flex-wrap: wrap; }
+	#settings .row button { padding: .7rem 1.1rem; border-radius: 10px; border: 1px solid var(--line); }
+	#settingsClose { background: var(--accent); color: #0d0d0f; font-weight: 600; border-color: var(--accent) !important; }
+	.sub { color: var(--dim); font-size: .85rem; }
+
+	#albumHead { display: flex; gap: 1rem; align-items: flex-start; margin: .9rem 0 1rem; }
+	#albumHead img { width: 168px; height: 168px; border-radius: 6px; flex: none; background: var(--line); }
+	#albumHead h3 { margin: 0 0 .2rem; font-size: 1.15rem; }
+	#albumHead .who { color: var(--dim); }
+	#albumHead .facts { color: var(--dim); font-size: .84rem; margin-top: .4rem; }
+	#albumHead button.playall {
+		margin-top: .8rem; background: var(--accent); color: #0d0d0f; font-weight: 600;
+		padding: .55rem 1rem; border-radius: 999px;
+	}
+	#versions { margin-bottom: .8rem; display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; }
+	#versions .lbl { color: var(--dim); font-size: .8rem; width: 100%; }
+	.trk { display: flex; gap: .8rem; align-items: center; padding: .55rem 0; border-top: 1px solid var(--line); width: 100%; text-align: left; }
+	.trk .no { color: var(--dim); font-size: .8rem; width: 1.6rem; flex: none; font-variant-numeric: tabular-nums; }
+	.trk .tn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.trk .dur { color: var(--dim); font-size: .8rem; font-variant-numeric: tabular-nums; }
+	.trk[aria-current="true"] .tn { color: var(--accent); font-weight: 600; }
 </style>
 </head>
 <body>
@@ -159,7 +205,9 @@
 	<span class="count" id="count"></span>
 	<button class="pill" id="sizeToggle">Size</button>
 	<button class="pill" id="viewToggle" aria-pressed="false">List</button>
+	<button class="pill" id="settingsBtn" aria-label="Settings">⚙</button>
 </header>
+<div id="kinds" hidden></div>
 <div id="sorts" hidden></div>
 
 <div id="welcome">
@@ -175,12 +223,32 @@
 <div id="bar">
 	<img id="barArt" alt="">
 	<div class="meta"><div class="t" id="barTitle">—</div><div class="a" id="barArtist"></div></div>
-	<button id="prev" aria-label="Previous">⏮</button>
-	<button id="toggle" aria-label="Play or pause">⏸</button>
-	<button id="next" aria-label="Next">⏭</button>
+	<button class="key" id="prev" aria-label="Previous"><svg viewBox="0 0 24 24"><path d="M6 5h3v14H6zM20 5v14L9.5 12z"/></svg></button>
+	<button class="key play" id="toggle" aria-label="Play or pause"><svg viewBox="0 0 24 24" id="toggleIcon"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg></button>
+	<button class="key" id="next" aria-label="Next"><svg viewBox="0 0 24 24"><path d="M15 5h3v14h-3zM4 5v14l10.5-7z"/></svg></button>
 </div>
 
 <div id="peek"><img id="peekArt" alt=""><div class="info"><div class="pn" id="peekName"></div><div class="pa" id="peekArtist"></div></div></div>
+
+<div id="settings" hidden><div class="sheet">
+	<h2>Settings</h2>
+	<label class="setting">Volume <input type="range" id="vol" min="0" max="100"></label>
+	<div class="setting"><span>Shuffle</span> <button class="pill" id="shuffleBtn" aria-pressed="false">Off</button></div>
+	<div class="setting"><span>Repeat</span> <button class="pill" id="repeatBtn">Off</button></div>
+	<p class="sub" id="eqNote"></p>
+	<div class="row">
+		<button id="settingsClose">Done</button>
+		<button id="refetch">Reload my records</button>
+	</div>
+</div></div>
+
+<div id="album" hidden><div class="sheet">
+	<button id="albumBack" class="pill">‹ Back</button>
+	<div id="albumHead"></div>
+	<div id="versions"></div>
+	<div id="tracks"></div>
+	<p class="sub" id="albumNote"></p>
+</div></div>
 
 <button id="fab" title="Tell Dad what's broken or rubbish">💬</button>
 
@@ -234,7 +302,9 @@
 		verifier: 'hatify.pkce',
 		database: 'hatify.library',
 		store: 'hatify.library.records',
-		albums: 'hatify.saved-albums.v1'
+		// v2 adds album_type. A v1 cache has no type on it, so bumping the key makes
+		// existing installs refetch once rather than showing an unfilterable shelf.
+		albums: 'hatify.saved-albums.v2'
 	};
 
 	const REFRESH_EARLY_MS = 60000;
@@ -672,7 +742,10 @@
 			release_date: album.release_date,
 			total_tracks: album.total_tracks,
 			added_at: item.added_at,
-			uri: album.uri
+			uri: album.uri,
+			// Not required above: an album missing this is still a perfectly good
+			// record, and losing it over a filter field would be absurd.
+			album_type: typeof album.album_type === 'string' ? album.album_type : 'album'
 		};
 	}
 
@@ -792,7 +865,7 @@ const SCOPES = [
 	'streaming', 'user-read-email', 'user-read-private',
 	'user-read-playback-state', 'user-modify-playback-state', 'user-library-read'
 ].join(' ');
-const K = { verifier: 'hatify.pkce', token: 'hatify.token', view: 'hatify.view', sort: 'hatify.sort', size: 'hatify.size', notes: 'hatify.notes', phone: 'hatify.phone' };
+const K = { verifier: 'hatify.pkce', token: 'hatify.token', view: 'hatify.view', sort: 'hatify.sort', size: 'hatify.size', kind: 'hatify.kind', notes: 'hatify.notes', phone: 'hatify.phone' };
 const SIZES = ['s', 'm', 'l', 'xl'];
 const SIZE_LABEL = { s: 'Small', m: 'Medium', l: 'Big', xl: 'Huge' };
 
@@ -801,6 +874,7 @@ const readLS = (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { 
 const writeLS = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
 
 let albums = [], view = readLS(K.view, 'grid'), sortKey = readLS(K.sort, 'artist'), size = readLS(K.size, 'l');
+let kindFilter = readLS(K.kind, 'all'), shown = 0;
 let player = null, deviceId = null, sdkReady = false, nowPlaying = null;
 const trail = [];   // recent events, for the reporter's context and the console
 
@@ -887,9 +961,29 @@ const SORTS = {
 	}
 };
 
+/* Spotify has no EP type. An EP arrives tagged "single" with several tracks on it,
+   so the split is by track count — the same call a shop makes putting a 5-track
+   12" in the EP rack rather than the singles bin. */
+function kindOf(a) {
+	if (a.album_type === 'single') return a.total_tracks >= 4 ? 'ep' : 'single';
+	return 'album';
+}
+const KINDS = { all: 'Everything', album: 'Albums', ep: 'EPs', single: 'Singles' };
+
 function arrange() {
 	const s = SORTS[sortKey] || SORTS.artist;
-	const sorted = albums.slice().sort(s.compare);
+	const pool = kindFilter === 'all' ? albums : albums.filter((a) => kindOf(a) === kindFilter);
+	// One cover per record. Harry has A Love Supreme three times over — original,
+	// mono and deluxe — and three identical sleeves in a row is clutter, not a
+	// collection. The plainest title stands for the record; the rest live inside it.
+	const one = new Map();
+	for (const a of pool) {
+		const key = recordKey(a);
+		const held = one.get(key);
+		if (!held || a.name.length < held.name.length) one.set(key, a);
+	}
+	const sorted = [...one.values()].sort(s.compare);
+	shown = sorted.length;
 	const groups = [];
 	for (const album of sorted) {
 		const name = s.section(album);
@@ -978,18 +1072,18 @@ function renderShelf() {
 		}
 		shelf.append(wrap);
 	}
-	el('count').textContent = `${albums.length}`;
+	el('count').textContent = shown === albums.length ? `${albums.length}` : `${shown} of ${albums.length}`;
 }
 
-/* Tap plays. Hold pulls the cover out of the sleeve — the answer to "I want them
-   bigger" that costs no screen and no navigation. */
+/* Tap opens the record — Harry asked for the tracklist, and it is also where the
+   different pressings of the same album live. Hold still peeks the cover big. */
 function bindRecord(button, album) {
 	let timer = null, held = false;
-	const start = () => { held = false; timer = setTimeout(() => { held = true; showPeek(album); }, 260); };
+	const start = () => { held = false; timer = setTimeout(() => { held = true; showPeek(album); }, 300); };
 	const end = (e) => {
 		clearTimeout(timer);
 		if (held) { hidePeek(); e.preventDefault(); return; }
-		play(album);
+		openAlbum(album);
 	};
 	button.addEventListener('touchstart', start, { passive: true });
 	button.addEventListener('touchend', end);
@@ -1006,6 +1100,96 @@ function showPeek(a) {
 }
 const hidePeek = () => el('peek').classList.remove('on');
 
+/* ---------- The record ----------
+   Harry: "There are doubles of some albums (e.g. a love supreme) because I have
+   the monophonic edition saved as well." So the shelf shows one cover per record
+   and the pressings sit inside it. Matching is on title plus artist with the
+   edition wording stripped — deliberately conservative, because wrongly merging
+   two genuinely different records is worse than leaving a duplicate on the shelf. */
+
+const EDITION = /\s*[\(\[\-–—]?\s*\b(mono(phonic)?|stereo|deluxe( edition)?|expanded( edition)?|remaster(ed)?|anniversary|reissue|special edition|super deluxe|\d{4} (remaster|mix|version)|bonus track version|explicit)\b[^\)\]]*[\)\]]?\s*/gi;
+const recordKey = (a) => (a.name.replace(EDITION, ' ').replace(/\s+/g, ' ').trim().toLowerCase()
+	+ '|' + a.artists.join(',').toLowerCase());
+
+function versionsOf(album) {
+	const key = recordKey(album);
+	// Longest title last: the plain pressing reads first, the deluxe after it.
+	return albums.filter((a) => recordKey(a) === key).sort((a, b) => a.name.length - b.name.length);
+}
+
+const mmss = (ms) => { const s = Math.round(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+
+let openRecord = null;
+async function openAlbum(album) {
+	openRecord = album;
+	el('album').hidden = false;
+	el('albumNote').textContent = '';
+	paintAlbumHead(album);
+	el('tracks').innerHTML = '<p class="sub">Getting the tracklist...</p>';
+	paintVersions(album);
+	try {
+		const full = await api(`/albums/${album.id}`);
+		if (openRecord?.id !== album.id) return;   // he moved on while it loaded
+		paintAlbumHead(album, full);
+		paintTracks(album, full);
+	} catch (e) {
+		if (e.message !== 'login required') el('tracks').innerHTML = '<p class="sub">Could not get the tracklist. Check the connection and try again.</p>';
+	}
+}
+
+function paintAlbumHead(a, full) {
+	const label = full?.label ? ` · ${full.label}` : '';
+	el('albumHead').innerHTML = '';
+	const img = document.createElement('img');
+	img.src = coverURL(a, 640); img.alt = '';
+	const box = document.createElement('div');
+	const h = document.createElement('h3'); h.textContent = a.name;
+	const who = document.createElement('div'); who.className = 'who'; who.textContent = a.artists.join(', ');
+	const facts = document.createElement('div'); facts.className = 'facts';
+	facts.textContent = `${year(a) || '—'} · ${a.total_tracks} tracks${label} · ${KINDS[kindOf(a)] || ''}`.replace(' · Albums', '');
+	const play = document.createElement('button'); play.className = 'playall'; play.textContent = '▶ Play';
+	play.onclick = () => playRecord(a);
+	box.append(h, who, facts, play);
+	el('albumHead').append(img, box);
+}
+
+function paintVersions(album) {
+	const all = versionsOf(album);
+	const box = el('versions');
+	box.innerHTML = '';
+	if (all.length < 2) return;
+	const lbl = document.createElement('div');
+	lbl.className = 'lbl';
+	lbl.textContent = `You have ${all.length} pressings of this`;
+	box.append(lbl);
+	for (const v of all) {
+		const b = document.createElement('button');
+		b.className = 'pill';
+		// The distinguishing words are what the shelf strips out; show those.
+		const edition = v.name.replace(album.name.replace(EDITION, ' ').replace(/\s+/g, ' ').trim(), '').trim();
+		b.textContent = (edition.replace(/^[\(\[\-–—\s]+|[\)\]\s]+$/g, '') || 'Original') + ` · ${v.total_tracks}`;
+		b.setAttribute('aria-pressed', String(v.id === album.id));
+		b.onclick = () => openAlbum(v);
+		box.append(b);
+	}
+}
+
+function paintTracks(a, full) {
+	const box = el('tracks');
+	box.innerHTML = '';
+	for (const t of full.tracks?.items || []) {
+		const row = document.createElement('button');
+		row.className = 'trk';
+		const no = document.createElement('span'); no.className = 'no'; no.textContent = t.track_number;
+		const nm = document.createElement('span'); nm.className = 'tn'; nm.textContent = t.name;
+		const du = document.createElement('span'); du.className = 'dur'; du.textContent = mmss(t.duration_ms);
+		row.append(no, nm, du);
+		row.onclick = () => playRecord(a, t.uri);
+		box.append(row);
+	}
+	el('albumNote').textContent = 'Credits and liner notes are coming next — from Discogs and Wikipedia, so every line says where it came from.';
+}
+
 /* ---------- Playback ---------- */
 
 async function api(path, opts = {}) {
@@ -1018,7 +1202,7 @@ async function api(path, opts = {}) {
 	return res.status === 204 ? null : res.headers.get('content-type')?.includes('json') ? res.json() : null;
 }
 
-async function play(album) {
+async function playRecord(album, trackUri) {
 	if (!deviceId) {
 		if (!player && sdkReady) { status('Starting the player...'); startPlayer(); }
 		else status('Player is still starting — try again in a moment.', 'warn');
@@ -1026,7 +1210,11 @@ async function play(album) {
 	}
 	try {
 		if (player.activateElement) await player.activateElement();   // iOS needs the tap
-		await api(`/me/player/play?device_id=${deviceId}`, { method: 'PUT', body: JSON.stringify({ context_uri: album.uri }) });
+		const body = { context_uri: album.uri };
+		// Starting at a track still plays the record from there on, rather than
+		// firing off one track on its own.
+		if (trackUri) body.offset = { uri: trackUri };
+		await api(`/me/player/play?device_id=${deviceId}`, { method: 'PUT', body: JSON.stringify(body) });
 		clearStatus();
 	} catch (e) {
 		if (e.message === '403') status('Playing needs Spotify Premium on this account.', 'bad');
@@ -1058,7 +1246,12 @@ function startPlayer() {
 		el('barArt').src = tr.album.images[0]?.url || '';
 		el('barTitle').textContent = tr.name;
 		el('barArtist').textContent = tr.artists.map((a) => a.name).join(', ');
-		el('toggle').textContent = state.paused ? '▶' : '⏸';
+		// Swap the path, not the button's text — the button holds an SVG key face.
+		el('toggleIcon').innerHTML = state.paused
+			? '<path d="M8 5v14l11-7z"/>'
+			: '<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>';
+		shuffleOn = !!state.shuffle;
+		repeatMode = REPEATS[state.repeat_mode] || 'off';
 		/* The lock screen will say "Spotify embedded player", not the record. The SDK
 		   plays inside a cross-origin iframe and iOS reads Now Playing from whatever
 		   element is actually playing, which is Spotify's. There is no bridge for it —
@@ -1165,19 +1358,75 @@ el('viewToggle').onclick = () => {
 	renderShelf();
 };
 
-function renderSorts() {
-	const box = el('sorts');
+function pillRow(box, entries, current, choose) {
 	box.innerHTML = '';
-	for (const [key, s] of Object.entries(SORTS)) {
+	for (const [key, label] of entries) {
 		const b = document.createElement('button');
 		b.className = 'pill';
-		b.textContent = s.label;
-		b.setAttribute('aria-pressed', String(key === sortKey));
-		b.onclick = () => { sortKey = key; writeLS(K.sort, key); renderSorts(); renderShelf(); window.scrollTo(0, 0); };
+		b.textContent = label;
+		b.setAttribute('aria-pressed', String(key === current));
+		b.onclick = () => { choose(key); window.scrollTo(0, 0); };
 		box.append(b);
 	}
 	box.hidden = false;
 }
+
+function renderSorts() {
+	pillRow(el('sorts'), Object.entries(SORTS).map(([k, s]) => [k, s.label]), sortKey,
+		(k) => { sortKey = k; writeLS(K.sort, k); renderSorts(); renderShelf(); });
+}
+
+function renderKinds() {
+	// Counts on the pills, because "Singles · 0" is a fact worth seeing rather than
+	// an empty screen that looks like a bug.
+	const n = { album: 0, ep: 0, single: 0 };
+	for (const a of albums) n[kindOf(a)]++;
+	const entries = Object.entries(KINDS).map(([k, label]) =>
+		[k, k === 'all' ? `${label} · ${albums.length}` : `${label} · ${n[k]}`]);
+	pillRow(el('kinds'), entries, kindFilter,
+		(k) => { kindFilter = k; writeLS(K.kind, k); renderKinds(); renderShelf(); });
+}
+
+/* Settings. Volume, shuffle and repeat are real: Spotify exposes them. An EQ is
+   not, and saying so beats drawing sliders that move nothing — the audio plays
+   inside Spotify's own sealed frame, which no web page can reach into. */
+let shuffleOn = false, repeatMode = 'off';
+const REPEATS = ['off', 'context', 'track'];
+const REPEAT_LABEL = { off: 'Off', context: 'Whole record', track: 'One track' };
+
+function paintSettings() {
+	el('shuffleBtn').textContent = shuffleOn ? 'On' : 'Off';
+	el('shuffleBtn').setAttribute('aria-pressed', String(shuffleOn));
+	el('repeatBtn').textContent = REPEAT_LABEL[repeatMode];
+	el('repeatBtn').setAttribute('aria-pressed', String(repeatMode !== 'off'));
+	el('eqNote').textContent = 'There is no EQ here, and there cannot be one: Spotify plays the sound inside its own sealed player and nothing on this page can reach it. Your iPad\'s own EQ, or the one on your headphones, is the real answer.';
+}
+el('settingsBtn').onclick = () => { paintSettings(); el('settings').hidden = false; };
+el('settingsClose').onclick = () => { el('settings').hidden = true; };
+el('settings').onclick = (e) => { if (e.target === el('settings')) el('settings').hidden = true; };
+el('vol').oninput = (e) => { player?.setVolume(e.target.value / 100).catch(() => {}); };
+el('shuffleBtn').onclick = async () => {
+	shuffleOn = !shuffleOn;
+	try { await api(`/me/player/shuffle?state=${shuffleOn}&device_id=${deviceId}`, { method: 'PUT' }); }
+	catch { shuffleOn = !shuffleOn; status('Could not change shuffle.', 'warn'); }
+	paintSettings();
+};
+el('repeatBtn').onclick = async () => {
+	const was = repeatMode;
+	repeatMode = REPEATS[(REPEATS.indexOf(repeatMode) + 1) % REPEATS.length];
+	try { await api(`/me/player/repeat?state=${repeatMode}&device_id=${deviceId}`, { method: 'PUT' }); }
+	catch { repeatMode = was; status('Could not change repeat.', 'warn'); }
+	paintSettings();
+};
+el('refetch').onclick = async () => {
+	el('settings').hidden = true;
+	try { await clearLibraryCache(); } catch {}
+	location.reload();
+};
+
+const closeAlbum = () => { el('album').hidden = true; openRecord = null; };
+el('albumBack').onclick = closeAlbum;
+el('album').onclick = (e) => { if (e.target === el('album')) closeAlbum(); };
 
 el('fab').onclick = () => { renderReport(); el('report').hidden = false; el('reportText').focus(); };
 el('reportClose').onclick = () => { el('report').hidden = true; };
@@ -1208,6 +1457,7 @@ el('reportSend').onclick = async () => {
 function showLibrary(list) {
 	albums = list;
 	el('welcome').style.display = 'none';
+	renderKinds();
 	renderSorts();
 	renderShelf();
 }
