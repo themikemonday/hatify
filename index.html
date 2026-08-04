@@ -7,165 +7,191 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Hatify">
 <meta name="theme-color" content="#0d0d0f">
-<title>Hatify — playback test</title>
+<title>Hatify</title>
 <style>
 	:root {
-		--bg: #0d0d0f;
-		--panel: #16161a;
-		--line: #2a2a31;
-		--text: #f2f2f4;
-		--dim: #9a9aa4;
-		--accent: #4ade80;
-		--bad: #f87171;
-		--warn: #fbbf24;
+		--bg: #0d0d0f; --panel: #16161a; --line: #2a2a31;
+		--text: #f2f2f4; --dim: #9a9aa4; --accent: #4ade80;
+		--bad: #f87171; --warn: #fbbf24;
+		--bar-h: calc(4.6rem + env(safe-area-inset-bottom));
 	}
 	* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+	html, body { overscroll-behavior-y: none; }
 	body {
-		margin: 0;
-		padding: max(1rem, env(safe-area-inset-top)) 1rem calc(6rem + env(safe-area-inset-bottom));
-		background: var(--bg);
-		color: var(--text);
+		margin: 0; background: var(--bg); color: var(--text);
 		font: 16px/1.5 -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif;
 		-webkit-font-smoothing: antialiased;
 	}
-	h1 { font-size: 1.3rem; margin: 0 0 .2rem; letter-spacing: -.02em; }
-	.sub { color: var(--dim); font-size: .9rem; margin: 0 0 1.25rem; }
+	button { font: inherit; cursor: pointer; border: 0; background: none; color: inherit; }
 
-	button {
-		font: inherit; font-weight: 600; color: #0d0d0f; background: var(--accent);
-		border: 0; border-radius: 10px; padding: .8rem 1.2rem; cursor: pointer;
+	/* Controls sit at the BOTTOM: held two-handed in portrait, the top bar is out of
+	   thumb reach without a regrip, which is exactly where Spotify puts its own. */
+	header {
+		position: sticky; top: 0; z-index: 6;
+		background: rgba(13,13,15,.9); backdrop-filter: blur(14px);
+		border-bottom: 1px solid var(--line);
+		padding: max(.5rem, env(safe-area-inset-top)) .8rem .5rem;
+		display: flex; align-items: center; gap: .6rem;
 	}
-	button.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); font-weight: 500; }
-	button:disabled { opacity: .4; }
+	header h1 { font-size: 1.05rem; margin: 0; letter-spacing: -.02em; flex: 1; }
+	header .count { font-size: .78rem; color: var(--dim); font-variant-numeric: tabular-nums; }
+	.pill {
+		font-size: .8rem; padding: .35rem .7rem; border-radius: 999px;
+		border: 1px solid var(--line); color: var(--dim); white-space: nowrap;
+	}
+	.pill[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); font-weight: 600; }
 
-	.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 1rem; margin-bottom: 1rem; }
-	.panel h2 { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin: 0 0 .7rem; font-weight: 600; }
+	#sorts { display: flex; gap: .4rem; overflow-x: auto; padding: .5rem .8rem; scrollbar-width: none; }
+	#sorts::-webkit-scrollbar { display: none; }
 
-	/* The grid Harry asked for: covers only, as big as the screen allows. */
-	#albums { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .8rem; }
-	#albums button { padding: 0; background: none; border: 0; border-radius: 8px; overflow: hidden; display: block; }
-	#albums img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; background: var(--line); }
+	#shelf { padding: 0 .8rem var(--bar-h); }
 
-	#log { font: 12px/1.6 ui-monospace, Menlo, monospace; white-space: pre-wrap; word-break: break-word; color: var(--dim); max-height: 15rem; overflow-y: auto; }
-	#log .ok { color: var(--accent); }
-	#log .bad { color: var(--bad); }
-	#log .warn { color: var(--warn); }
+	/* Grid: covers only, no names — he knows his own records by looking at them.
+	   3 up in portrait puts a cover at roughly 49mm, about double Spotify's linear
+	   size, which is the actual complaint being answered. */
+	.section-head {
+		position: sticky; top: 0; z-index: 4;
+		background: linear-gradient(var(--bg) 70%, transparent);
+		padding: 1.1rem 0 .5rem; font-size: .8rem; font-weight: 700;
+		letter-spacing: .1em; text-transform: uppercase; color: var(--dim);
+	}
+	.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .7rem; }
+	@media (min-width: 700px) { .grid { grid-template-columns: repeat(4, 1fr); } }
+	.grid .rec { border-radius: 6px; overflow: hidden; }
+	.grid .rec img, .grid .rec .ph { width: 100%; aspect-ratio: 1; display: block; object-fit: cover; }
+
+	.list .rec { display: flex; gap: .8rem; align-items: center; padding: .45rem 0; text-align: left; width: 100%; }
+	.list .rec img, .list .rec .ph { width: 62px; height: 62px; border-radius: 5px; flex: none; object-fit: cover; }
+	.list .meta { min-width: 0; }
+	.list .nm { font-weight: 600; font-size: .92rem; }
+	.list .ar { color: var(--dim); font-size: .82rem; }
+	.list .nm, .list .ar { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	/* Placeholder while the cover is out of view or still loading. Keeping the box
+	   the same size means nothing reflows and he never loses his place. */
+	.ph { background: var(--line); }
+
+	#status {
+		position: fixed; left: .8rem; right: .8rem; bottom: calc(var(--bar-h) + .6rem); z-index: 25;
+		background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+		padding: .6rem .8rem; font-size: .85rem; display: none;
+	}
+	#status.on { display: block; }
+	#status.bad { border-color: var(--bad); }
+	#status.warn { border-color: var(--warn); }
+	#status button { color: var(--accent); font-weight: 600; margin-left: .5rem; }
 
 	#bar {
 		position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
-		background: rgba(22,22,26,.96); backdrop-filter: blur(12px);
+		background: rgba(22,22,26,.97); backdrop-filter: blur(14px);
 		border-top: 1px solid var(--line);
-		padding: .7rem 1rem calc(.7rem + env(safe-area-inset-bottom));
-		display: none; align-items: center; gap: .8rem;
+		padding: .6rem .8rem calc(.6rem + env(safe-area-inset-bottom));
+		display: none; align-items: center; gap: .7rem;
 	}
 	#bar.on { display: flex; }
-	#bar img { width: 46px; height: 46px; border-radius: 6px; background: var(--line); }
+	#bar img { width: 44px; height: 44px; border-radius: 5px; background: var(--line); }
 	#bar .meta { flex: 1; min-width: 0; }
-	#bar .t { font-weight: 600; font-size: .9rem; }
-	#bar .a { color: var(--dim); font-size: .8rem; }
+	#bar .t { font-weight: 600; font-size: .88rem; }
+	#bar .a { color: var(--dim); font-size: .78rem; }
 	#bar .t, #bar .a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-	#bar button { padding: .55rem .9rem; }
+	#bar button { font-size: 1.3rem; padding: .3rem .5rem; }
 
-	ol.steps { padding-left: 1.2rem; margin: 0; }
-	ol.steps li { margin-bottom: .55rem; }
-	code { background: var(--line); padding: .1rem .35rem; border-radius: 4px; font-size: .85em; }
+	/* Peek: hold a cover to pull it out of the sleeve, release to drop it back.
+	   Answers "I want them bigger" without a detail screen, a back button, or
+	   losing your place in 688 records. */
+	#peek {
+		position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.86);
+		display: none; flex-direction: column; align-items: center; justify-content: center;
+		padding: 1.5rem; gap: 1rem;
+	}
+	#peek.on { display: flex; }
+	#peek img { width: min(78vw, 78vh); aspect-ratio: 1; object-fit: cover; border-radius: 8px; box-shadow: 0 20px 60px rgba(0,0,0,.7); }
+	#peek .info { text-align: center; }
+	#peek .pn { font-size: 1.1rem; font-weight: 600; }
+	#peek .pa { color: var(--dim); }
 
-	/* Reporter — the same one Charlie and Archie have. */
+	#welcome { padding: 2.5rem 1.2rem; text-align: center; }
+	#welcome h2 { font-size: 1.4rem; margin: 0 0 .5rem; }
+	#welcome p { color: var(--dim); margin: 0 0 1.4rem; }
+	#connect { background: var(--accent); color: #0d0d0f; font-weight: 600; padding: .85rem 1.3rem; border-radius: 10px; }
+
 	#fab {
-		position: fixed; right: 1rem; bottom: calc(1rem + env(safe-area-inset-bottom)); z-index: 20;
-		width: 54px; height: 54px; border-radius: 50%; padding: 0; font-size: 1.5rem;
-		background: var(--panel); border: 1px solid var(--line); color: var(--text);
+		position: fixed; right: .8rem; bottom: calc(var(--bar-h) + .6rem); z-index: 20;
+		width: 50px; height: 50px; border-radius: 50%; font-size: 1.35rem;
+		background: var(--panel); border: 1px solid var(--line);
 		box-shadow: 0 4px 16px rgba(0,0,0,.5);
 	}
-	#bar.on ~ #fab { bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
 	#report[hidden] { display: none; }
-	#report {
-		position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.6);
-		display: flex; align-items: flex-end; justify-content: center;
-	}
+	#report { position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.6); display: flex; align-items: flex-end; justify-content: center; }
 	#report .sheet {
-		background: var(--panel); border-top: 1px solid var(--line); width: 100%; max-width: 34rem;
-		border-radius: 16px 16px 0 0; padding: 1.1rem 1.1rem calc(1.1rem + env(safe-area-inset-bottom));
+		background: var(--panel); width: 100%; max-width: 34rem; border-radius: 16px 16px 0 0;
+		border-top: 1px solid var(--line); padding: 1.1rem 1.1rem calc(1.1rem + env(safe-area-inset-bottom));
 		max-height: 88vh; overflow-y: auto;
 	}
 	#report h2 { font-size: 1.05rem; margin: 0 0 .4rem; }
+	#report .sub { color: var(--dim); font-size: .88rem; margin: 0 0 .7rem; }
 	#report textarea {
-		width: 100%; min-height: 7rem; background: var(--bg); color: var(--text);
+		width: 100%; min-height: 6.5rem; background: var(--bg); color: var(--text);
 		border: 1px solid var(--line); border-radius: 10px; padding: .7rem; font: inherit; resize: vertical;
 	}
 	#report .row { display: flex; gap: .5rem; margin-top: .8rem; flex-wrap: wrap; }
+	#report .row button { padding: .7rem 1.1rem; border-radius: 10px; border: 1px solid var(--line); }
+	#report #reportSend { background: var(--accent); color: #0d0d0f; font-weight: 600; border-color: var(--accent); }
 	#report details { margin-top: 1rem; border-top: 1px solid var(--line); padding-top: .8rem; }
-	#report summary { cursor: pointer; color: var(--dim); font-size: .88rem; }
-	#report input[type=tel] {
-		width: 100%; margin-top: .6rem; background: var(--bg); color: var(--text);
-		border: 1px solid var(--line); border-radius: 10px; padding: .7rem; font: inherit;
-	}
-	#saved { margin-top: 1rem; font-size: .85rem; color: var(--dim); }
+	#report summary { color: var(--dim); font-size: .88rem; }
+	#report input[type=tel] { width: 100%; margin-top: .6rem; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: .7rem; font: inherit; }
+	.ctx { font-size: .74rem; color: var(--dim); margin-top: .5rem; }
+	#saved { margin-top: 1rem; font-size: .84rem; color: var(--dim); }
 	#saved > div { padding: .4rem 0; border-top: 1px solid var(--line); }
-	button.mini { font-size: .75rem; padding: .25rem .5rem; background: transparent; color: var(--accent); border: 1px solid var(--line); border-radius: 6px; }
-	.ctx { font-size: .75rem; color: var(--dim); margin-top: .5rem; word-break: break-word; }
+	button.mini { font-size: .74rem; padding: .22rem .5rem; color: var(--accent); border: 1px solid var(--line); border-radius: 6px; }
 </style>
 </head>
 <body>
 
-<h1>Hatify</h1>
-<p class="sub">Playback test — does a record play <em>here</em>, without leaving for Spotify?</p>
+<header>
+	<h1>Hatify</h1>
+	<span class="count" id="count"></span>
+	<button class="pill" id="viewToggle" aria-pressed="false">List</button>
+</header>
+<div id="sorts" hidden></div>
 
-<div class="panel" id="authPanel">
-	<h2>Step 1 — connect</h2>
+<div id="welcome">
+	<h2>Your records</h2>
+	<p>Everything you've saved, as covers you can actually see.</p>
 	<button id="connect">Connect Spotify</button>
-	<p class="sub" style="margin:.8rem 0 0">Use Harry's Spotify account, not Mike's.</p>
 </div>
 
-<div class="panel" id="testPanel" hidden>
-	<h2>Step 2 — the tests that matter</h2>
-	<ol class="steps">
-		<li>Tap a cover below. It should start playing <strong>with this page still on screen</strong>. If Spotify opens, the test has failed.</li>
-		<li><strong>Lock the iPad.</strong> Does the music keep going? Do the lock-screen controls work?</li>
-		<li><strong>Switch to another app</strong> for ten seconds, then come back. Still playing?</li>
-		<li>Add this page to the Home Screen (Share → Add to Home Screen), open it from there, and repeat 1–3. iOS treats that as a separate app with separate storage, so it has to be tested twice.</li>
-	</ol>
-	<p class="sub" style="margin:.9rem 0 0">Then tap <strong>Copy the log</strong> at the bottom and send it to Mike.</p>
-</div>
+<div id="shelf"></div>
 
-<div class="panel" id="albumsPanel" hidden>
-	<h2>Step 3 — tap a record</h2>
-	<div id="albums"></div>
-</div>
-
-<div class="panel">
-	<h2>What happened</h2>
-	<div id="log">Waiting.</div>
-	<div style="margin-top:.9rem; display:flex; gap:.5rem; flex-wrap:wrap">
-		<button class="ghost" id="copy">Copy the log</button>
-		<button class="ghost" id="reset">Start again</button>
-	</div>
-</div>
+<div id="status"></div>
 
 <div id="bar">
 	<img id="barArt" alt="">
 	<div class="meta"><div class="t" id="barTitle">—</div><div class="a" id="barArtist"></div></div>
-	<button id="toggle">Pause</button>
+	<button id="prev" aria-label="Previous">⏮</button>
+	<button id="toggle" aria-label="Play or pause">⏸</button>
+	<button id="next" aria-label="Next">⏭</button>
 </div>
+
+<div id="peek"><img id="peekArt" alt=""><div class="info"><div class="pn" id="peekName"></div><div class="pa" id="peekArtist"></div></div></div>
 
 <button id="fab" title="Tell Dad what's broken or rubbish">💬</button>
 
 <div id="report" hidden>
 	<div class="sheet">
 		<h2>Tell Dad</h2>
-		<p class="sub" id="reportIntro" style="margin:0 0 .7rem"></p>
+		<p class="sub" id="reportIntro"></p>
 		<textarea id="reportText" placeholder="What's broken, wrong, or just annoying?"></textarea>
 		<div class="ctx" id="reportCtx"></div>
 		<div class="row">
 			<button id="reportSend">Send</button>
-			<button class="ghost" id="reportClose">Not now</button>
+			<button id="reportClose">Not now</button>
 		</div>
 		<div id="saved"></div>
 		<details>
 			<summary>Direct-to-Dad setup</summary>
 			<p class="sub" style="margin:.6rem 0 0">Put Dad's mobile number in once and Send opens Messages straight to him. It stays on this device.</p>
 			<input type="tel" id="reportPhone" placeholder="e.g. +61 4XX XXX XXX" autocomplete="tel">
-			<div class="row"><button class="ghost" id="reportSavePhone">Save number</button></div>
+			<div class="row"><button id="reportSavePhone">Save number</button></div>
 		</details>
 	</div>
 </div>
@@ -173,268 +199,909 @@
 <script src="https://sdk.scdn.co/spotify-player.js"></script>
 <script>
 /*
- * Hatify — playback proof.
+ * Hatify — the whole record shelf.
  *
- * The one question this answers: can a web page on Harry's iPad play a record
- * itself, or does it have to hand off to the Spotify app? Mike ruled the handoff
- * out ("the bounce would be utterly crap"), so everything else waits on this.
+ * Harry has 688 saved albums. Waiting for roughly fourteen Spotify requests
+ * before drawing anything made a working app look broken, so the old shelf is
+ * deliberately returned before the new one is fetched. A cached shelf says it
+ * is stale because, at that instant, nobody yet knows whether Spotify changed.
  *
- * The client ID is public on purpose. This uses Authorization Code with PKCE,
- * where the client ID is not a secret and is designed to ship in the page. There
- * is no client secret here and there must never be one.
+ * The first playback proof also threw Spotify's refresh token away. The access
+ * token then expired after an hour and the app stopped without an explanation.
+ * This owns the return from Spotify so the refresh token is saved the first time;
+ * do not run the old handleReturn() before loadLibrary() when integrating it.
+ */
+(function () {
+	'use strict';
+
+	const CLIENT_ID = 'bbe6ec90fa9b4ff29d44a47b35d8bcb3';
+	const TOKEN_URL = 'https://accounts.spotify.com/api/token';
+	const API_ORIGIN = 'https://api.spotify.com';
+	const FIRST_PAGE = API_ORIGIN + '/v1/me/albums?limit=50';
+
+	// Every app on themikemonday.github.io gets the same browser storage. The
+	// database, store, record and existing login keys all name Hatify explicitly.
+	const K = {
+		token: 'hatify.token',
+		verifier: 'hatify.pkce',
+		database: 'hatify.library',
+		store: 'hatify.library.records',
+		albums: 'hatify.saved-albums.v1'
+	};
+
+	const REFRESH_EARLY_MS = 60000;
+	const MAX_RATE_LIMIT_RETRIES = 4;
+	let databasePromise = null;
+	let refreshPromise = null;
+	let authorizationPromise = null;
+
+	function failure(code, message, details = {}) {
+		const error = new Error(message);
+		error.name = 'HatifyLibraryError';
+		error.code = code;
+		Object.assign(error, details);
+		return error;
+	}
+
+	function mustLogIn(message) {
+		return failure('must_log_in_again', message, {
+			state: 'must_log_in_again',
+			requiresLogin: true
+		});
+	}
+
+	function reportFailure(error) {
+		// A background failure cannot change a Promise that already painted the
+		// shelf. Keep it visible in Safari's console instead of losing it silently.
+		const code = error?.code || 'unexpected_failure';
+		console.warn(`[Hatify library: ${code}] ${error?.message || error}`, error);
+	}
+
+	function notify(callback, value, name) {
+		if (typeof callback !== 'function') return;
+		try {
+			const result = callback(value);
+			if (result && typeof result.catch === 'function') {
+				result.catch((error) => reportFailure(failure(
+					`${name}_callback_failed`,
+					`Hatify's ${name} callback failed: ${error?.message || error}`,
+					{ cause: error }
+				)));
+			}
+		} catch (error) {
+			reportFailure(failure(
+				`${name}_callback_failed`,
+				`Hatify's ${name} callback failed: ${error?.message || error}`,
+				{ cause: error }
+			));
+		}
+	}
+
+	function requestResult(request, code, message) {
+		return new Promise((resolve, reject) => {
+			request.onsuccess = () => resolve(request.result);
+			request.onerror = () => reject(failure(code, message, { cause: request.error }));
+		});
+	}
+
+	function openDatabase() {
+		if (databasePromise) return databasePromise;
+		if (!globalThis.indexedDB) {
+			return Promise.reject(failure(
+				'cache_unavailable',
+				'This browser does not provide IndexedDB, so Hatify cannot keep an offline shelf.'
+			));
+		}
+
+		databasePromise = new Promise((resolve, reject) => {
+			let request;
+			try { request = indexedDB.open(K.database, 1); }
+			catch (error) {
+				reject(failure('cache_unavailable', 'Hatify could not open its album cache.', { cause: error }));
+				return;
+			}
+
+			request.onupgradeneeded = () => {
+				if (!request.result.objectStoreNames.contains(K.store)) {
+					request.result.createObjectStore(K.store);
+				}
+			};
+			request.onsuccess = () => {
+				const database = request.result;
+				database.onversionchange = () => {
+					// Another Hatify tab may have opened a newer cache. Closing this copy
+					// lets that upgrade finish instead of leaving both tabs stuck.
+					database.close();
+					databasePromise = null;
+				};
+				resolve(database);
+			};
+			request.onerror = () => {
+				databasePromise = null;
+				reject(failure('cache_unavailable', 'Hatify could not open its album cache.', { cause: request.error }));
+			};
+			request.onblocked = () => {
+				databasePromise = null;
+				reject(failure('cache_blocked', 'Another Hatify tab is blocking the album cache. Close the other tab and try again.'));
+			};
+		});
+
+		return databasePromise;
+	}
+
+	async function readCache() {
+		const database = await openDatabase();
+		let request;
+		try {
+			request = database.transaction(K.store, 'readonly').objectStore(K.store).get(K.albums);
+		} catch (error) {
+			throw failure('cache_read_failed', 'Hatify could not read its saved shelf.', { cause: error });
+		}
+		const albums = await requestResult(request, 'cache_read_failed', 'Hatify could not read its saved shelf.');
+		if (albums === undefined) return null;
+		if (!Array.isArray(albums)) {
+			throw failure('cache_corrupt', 'Hatify found an album cache it cannot understand.');
+		}
+		return albums;
+	}
+
+	async function writeCache(albums) {
+		const database = await openDatabase();
+		let transaction, request;
+		try {
+			transaction = database.transaction(K.store, 'readwrite');
+			request = transaction.objectStore(K.store).put(albums, K.albums);
+		} catch (error) {
+			throw failure('cache_write_failed', 'Hatify loaded the shelf but could not save it for next time.', { cause: error });
+		}
+		await requestResult(request, 'cache_write_failed', 'Hatify loaded the shelf but could not save it for next time.');
+		// put() reports success before the transaction commits, and running out of
+		// storage surfaces at commit time. Waiting only on the request would call a
+		// shelf saved that was actually thrown away, which is discovered later as an
+		// empty app with no network.
+		await new Promise((resolve, reject) => {
+			transaction.oncomplete = () => resolve();
+			transaction.onabort = transaction.onerror = () => reject(failure(
+				'cache_write_failed',
+				'Hatify loaded the shelf but could not save it for next time.',
+				{ cause: transaction.error }
+			));
+		});
+	}
+
+	async function clearLibraryCache() {
+		const database = await openDatabase();
+		let request;
+		try {
+			request = database.transaction(K.store, 'readwrite').objectStore(K.store).delete(K.albums);
+		} catch (error) {
+			throw failure('cache_clear_failed', 'Hatify could not clear its saved shelf.', { cause: error });
+		}
+		await requestResult(request, 'cache_clear_failed', 'Hatify could not clear its saved shelf.');
+	}
+
+	function readStoredToken() {
+		let raw;
+		try { raw = localStorage.getItem(K.token); }
+		catch (error) {
+			throw failure('token_storage_unavailable', 'This browser would not let Hatify read the Spotify login.', { cause: error });
+		}
+		if (!raw) return null;
+
+		let token;
+		try { token = JSON.parse(raw); }
+		catch (error) {
+			throw failure('token_record_invalid', 'Hatify found a Spotify login it cannot understand. Log in again.', {
+				state: 'must_log_in_again', requiresLogin: true, cause: error
+			});
+		}
+		if (!token || typeof token.access !== 'string' || !token.access) {
+			throw failure('token_record_invalid', 'Hatify found a Spotify login it cannot understand. Log in again.', {
+				state: 'must_log_in_again', requiresLogin: true
+			});
+		}
+		return token;
+	}
+
+	function saveToken(token) {
+		try { localStorage.setItem(K.token, JSON.stringify(token)); }
+		catch (error) {
+			// Continuing here would recreate the original one-hour failure, only
+			// with a different cause. Refuse the false success instead.
+			throw failure('token_storage_unavailable', 'Spotify logged in, but this browser would not let Hatify save the login.', { cause: error });
+		}
+	}
+
+	function forgetToken() {
+		try { localStorage.removeItem(K.token); }
+		catch (error) {
+			throw failure('token_storage_unavailable', 'Spotify rejected the login, but Hatify could not remove the broken token.', {
+				state: 'must_log_in_again', requiresLogin: true, cause: error
+			});
+		}
+	}
+
+	// Only discard the login if it is still the one that just failed. Spotify rotates
+	// refresh tokens, so with the app open in Safari and on the Home Screen at once,
+	// the slower tab refreshes a token the faster tab has already replaced, is told
+	// invalid_grant, and would otherwise delete a working login out from under it.
+	function forgetTokenIfUnchanged(attempted) {
+		let current = null;
+		try { current = readStoredToken(); } catch { forgetToken(); return; }
+		if (!current || current.refresh === attempted?.refresh) forgetToken();
+	}
+
+	function retryDelay(response) {
+		const value = response.headers.get('Retry-After');
+		const seconds = Number(value);
+		if (Number.isFinite(seconds) && seconds >= 0) return Math.max(1000, seconds * 1000);
+		const date = Date.parse(value);
+		if (Number.isFinite(date)) return Math.max(1000, date - Date.now());
+		return 1000;
+	}
+
+	const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+	async function fetchWithRateLimit(url, options = {}) {
+		for (let attempt = 0; ; attempt++) {
+			let response;
+			try { response = await fetch(url, options); }
+			catch (error) {
+				throw failure('offline', 'Hatify could not reach Spotify. The device may be offline.', { cause: error });
+			}
+
+			if (response.status !== 429) return response;
+			const delay = retryDelay(response);
+			if (attempt >= MAX_RATE_LIMIT_RETRIES) {
+				throw failure('rate_limited', 'Spotify is still asking Hatify to slow down. Try again later.', {
+					retryAfter: delay
+				});
+			}
+			// Retry-After is Spotify telling us exactly when another request is
+			// welcome. Guessing sooner only makes the lockout last longer.
+			await wait(delay);
+		}
+	}
+
+	async function responseJSON(response, code, message) {
+		try { return await response.json(); }
+		catch (error) { throw failure(code, message, { status: response.status, cause: error }); }
+	}
+
+	function cleanAuthorizationURL() {
+		const url = new URL(location.href);
+		url.searchParams.delete('code');
+		url.searchParams.delete('error');
+		url.searchParams.delete('error_description');
+		url.searchParams.delete('state');
+		const query = url.searchParams.toString();
+		history.replaceState({}, '', url.origin + url.pathname + (query ? '?' + query : '') + url.hash);
+	}
+
+	async function exchangeAuthorizationCode() {
+		const url = new URL(location.href);
+		const denied = url.searchParams.get('error');
+		if (denied) {
+			cleanAuthorizationURL();
+			throw mustLogIn(`Spotify refused the login (${denied}). Log in again.`);
+		}
+
+		const code = url.searchParams.get('code');
+		if (!code) return;
+
+		let verifier;
+		try { verifier = sessionStorage.getItem(K.verifier); }
+		catch (error) {
+			throw failure('pkce_storage_unavailable', 'Hatify could not read the one-time Spotify login verifier.', { cause: error });
+		}
+		if (!verifier) {
+			cleanAuthorizationURL();
+			throw mustLogIn('Hatify lost the one-time Spotify login verifier. Start the login again.');
+		}
+
+		const response = await fetchWithRateLimit(TOKEN_URL, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			body: new URLSearchParams({
+				grant_type: 'authorization_code',
+				code,
+				redirect_uri: location.origin + location.pathname,
+				client_id: CLIENT_ID,
+				code_verifier: verifier
+			})
+		});
+		const data = await responseJSON(response, 'token_response_invalid', 'Spotify returned an unreadable login response.');
+
+		if (!response.ok) {
+			if (data?.error === 'invalid_grant' || response.status === 401) {
+				cleanAuthorizationURL();
+				throw mustLogIn('Spotify rejected the one-time login code. Start the login again.');
+			}
+			throw failure('token_exchange_failed', `Spotify could not finish the login (${response.status}).`, {
+				status: response.status, spotifyError: data?.error || null
+			});
+		}
+		if (!data?.access_token || !data?.refresh_token || !Number.isFinite(Number(data.expires_in))) {
+			cleanAuthorizationURL();
+			throw failure('token_response_invalid', 'Spotify logged in without returning the tokens Hatify needs. Start the login again.', {
+				state: 'must_log_in_again', requiresLogin: true
+			});
+		}
+
+		saveToken({
+			access: data.access_token,
+			refresh: data.refresh_token,
+			expires: Date.now() + Number(data.expires_in) * 1000
+		});
+		cleanAuthorizationURL();
+		try { sessionStorage.removeItem(K.verifier); } catch {}
+	}
+
+	function captureAuthorizationReturn() {
+		if (authorizationPromise) return authorizationPromise;
+		authorizationPromise = exchangeAuthorizationCode().finally(() => { authorizationPromise = null; });
+		return authorizationPromise;
+	}
+
+	async function forceRefreshAccessToken(token) {
+		if (!token?.refresh) return null;
+
+		const response = await fetchWithRateLimit(TOKEN_URL, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			body: new URLSearchParams({
+				grant_type: 'refresh_token',
+				refresh_token: token.refresh,
+				client_id: CLIENT_ID
+			})
+		});
+		const data = await responseJSON(response, 'token_response_invalid', 'Spotify returned an unreadable token refresh response.');
+
+		if (!response.ok) {
+			if (data?.error === 'invalid_grant' || data?.error === 'invalid_client' || response.status === 401) {
+				forgetTokenIfUnchanged(token);
+				return null;
+			}
+			throw failure('token_refresh_failed', `Spotify could not refresh the login (${response.status}).`, {
+				status: response.status, spotifyError: data?.error || null
+			});
+		}
+		if (!data?.access_token || !Number.isFinite(Number(data.expires_in))) {
+			throw failure('token_response_invalid', 'Spotify refreshed the login without returning a usable access token.');
+		}
+
+		const fresh = {
+			access: data.access_token,
+			// Spotify usually sends a refresh token only when it rotates one. Losing
+			// the old value when it omits that field would break the next refresh.
+			refresh: data.refresh_token || token.refresh,
+			expires: Date.now() + Number(data.expires_in) * 1000
+		};
+		saveToken(fresh);
+		return fresh.access;
+	}
+
+	async function refreshAccessToken() {
+		const token = readStoredToken();
+		if (!token) return null;
+		if (Number.isFinite(Number(token.expires)) && Date.now() < Number(token.expires) - REFRESH_EARLY_MS) {
+			return token.access;
+		}
+		if (!token.refresh) return null;
+
+		if (!refreshPromise) {
+			refreshPromise = forceRefreshAccessToken(token).finally(() => { refreshPromise = null; });
+		}
+		return refreshPromise;
+	}
+
+	async function refreshAfter401() {
+		const token = readStoredToken();
+		if (!token?.refresh) return null;
+		if (!refreshPromise) {
+			refreshPromise = forceRefreshAccessToken(token).finally(() => { refreshPromise = null; });
+		}
+		return refreshPromise;
+	}
+
+	async function spotifyRequest(url) {
+		let access = await refreshAccessToken();
+		if (!access) throw mustLogIn('Spotify needs Harry to log in again.');
+
+		let response = await fetchWithRateLimit(url, {
+			headers: { Authorization: 'Bearer ' + access }
+		});
+		if (response.status !== 401) return response;
+
+		access = await refreshAfter401();
+		if (!access) throw mustLogIn('Spotify rejected the saved login. Harry must log in again.');
+		response = await fetchWithRateLimit(url, {
+			headers: { Authorization: 'Bearer ' + access }
+		});
+		if (response.status === 401) {
+			forgetToken();
+			throw mustLogIn('Spotify rejected the refreshed login. Harry must log in again.');
+		}
+		return response;
+	}
+
+	function normalizeAlbum(item, position) {
+		const album = item?.album;
+		const valid = album
+			&& typeof album.id === 'string'
+			&& typeof album.name === 'string'
+			&& Array.isArray(album.artists)
+			&& album.artists.every((artist) => typeof artist?.name === 'string')
+			&& Array.isArray(album.images)
+			&& album.images.every((image) => typeof image?.url === 'string')
+			&& typeof album.release_date === 'string'
+			&& Number.isFinite(album.total_tracks)
+			&& typeof item.added_at === 'string'
+			&& typeof album.uri === 'string';
+		// Skip, do not throw. Throwing meant one odd record out of 688 lost Harry the
+		// entire shelf, and Spotify's catalogue is not uniformly clean: albums go
+		// regionally unavailable, get delisted, and occasionally come back with a
+		// null album or no artwork. Losing one record is a footnote; losing the
+		// collection because of it is the app being broken.
+		if (!valid) {
+			reportFailure(failure(
+				'album_skipped',
+				`Skipped an incomplete album at shelf position ${position + 1}.`,
+				{ id: album?.id ?? null, name: album?.name ?? null }
+			));
+			return null;
+		}
+
+		return {
+			id: album.id,
+			name: album.name,
+			artists: album.artists.map((artist) => artist.name),
+			images: album.images.map((image) => ({
+				url: image.url,
+				width: Number.isFinite(image.width) ? image.width : null,
+				height: Number.isFinite(image.height) ? image.height : null
+			})),
+			release_date: album.release_date,
+			total_tracks: album.total_tracks,
+			added_at: item.added_at,
+			uri: album.uri
+		};
+	}
+
+	async function fetchAllAlbums(onProgress) {
+		let next = FIRST_PAGE;
+		let total = null;
+		let skipped = 0;
+		const albums = [];
+
+		while (next) {
+			let pageURL;
+			try { pageURL = new URL(next); }
+			catch (error) {
+				throw failure('spotify_response_invalid', 'Spotify returned an invalid next-page address.', { cause: error });
+			}
+			if (pageURL.origin !== API_ORIGIN) {
+				// The bearer token must never follow a server-provided link away from
+				// Spotify, even if a bad response somehow supplies one.
+				throw failure('spotify_response_invalid', 'Spotify returned a next-page address outside Spotify.');
+			}
+
+			const response = await spotifyRequest(pageURL.href);
+			if (!response.ok) {
+				throw failure('spotify_request_failed', `Spotify could not load the album shelf (${response.status}).`, {
+					status: response.status, url: pageURL.href
+				});
+			}
+			const page = await responseJSON(response, 'spotify_response_invalid', 'Spotify returned an unreadable album page.');
+			if (!Array.isArray(page?.items) || !Number.isFinite(page.total) || !(page.next === null || typeof page.next === 'string')) {
+				throw failure('spotify_response_invalid', 'Spotify returned an album page Hatify cannot understand.');
+			}
+
+			for (const item of page.items) {
+				const album = normalizeAlbum(item, albums.length + skipped);
+				if (album) albums.push(album); else skipped++;
+			}
+			total = Math.max(total ?? 0, page.total, albums.length);
+			notify(onProgress, { loaded: albums.length, total, skipped }, 'progress');
+			next = page.next;
+		}
+
+		return { albums, skipped };
+	}
+
+	const shelvesMatch = (cached, fresh) => JSON.stringify(cached) === JSON.stringify(fresh);
+
+	async function fetchAndCache(onProgress) {
+		await captureAuthorizationReturn();
+		const { albums, skipped } = await fetchAllAlbums(onProgress);
+		// Whether the shelf actually reached the cache is the caller's business: a
+		// load that fetched fine but failed to save looks perfect now and looks like
+		// an empty app the next time he opens it without a signal.
+		let cached = true;
+		try { await writeCache(albums); }
+		catch (error) { cached = false; reportFailure(error); }
+		return { albums, skipped, cached };
+	}
+
+	async function loadLibrary(options = {}) {
+		if (!options || typeof options !== 'object') {
+			throw failure('invalid_options', 'loadLibrary expects an options object.');
+		}
+		const { onProgress, onFresh, onError } = options;
+		const openingURL = new URL(location.href);
+		if (openingURL.searchParams.has('code') || openingURL.searchParams.has('error')) {
+			// A normal reopen still paints straight from cache. A return from Spotify
+			// is different: losing this one-time code would force another trip through
+			// login, so save its refresh token before handing control back to the UI.
+			await captureAuthorizationReturn();
+		}
+		let cached = null;
+		try { cached = await readCache(); }
+		catch (error) {
+			reportFailure(error);
+			if (error.code === 'cache_corrupt') clearLibraryCache().catch(reportFailure);
+		}
+
+		if (cached !== null) {
+			// Do not await this. The whole point of the cache is that fourteen page
+			// requests cannot hold the shelf hostage when Hatify opens.
+			fetchAndCache(onProgress).then(({ albums: fresh, skipped, cached: saved }) => {
+				if (!shelvesMatch(cached, fresh)) notify(onFresh, { albums: fresh, skipped, cached: saved }, 'fresh');
+			}).catch((error) => {
+				reportFailure(error);
+				// The console is not a place a fifteen-year-old looks. A background
+				// refresh that fails because the login died is the exact case where he
+				// is looking at a cached shelf whose records will not play, so the UI
+				// has to be told rather than left to discover it on a 401.
+				notify(onError, error, 'error');
+			});
+			return { albums: cached, fromCache: true, stale: true };
+		}
+
+		const { albums, skipped, cached: saved } = await fetchAndCache(onProgress);
+		return { albums, fromCache: false, stale: false, skipped, cached: saved };
+	}
+
+	globalThis.loadLibrary = loadLibrary;
+	globalThis.refreshAccessToken = refreshAccessToken;
+	globalThis.clearLibraryCache = clearLibraryCache;
+})();
+</script>
+<script>
+/*
+ * Hatify — Harry's record collection.
+ *
+ * Built for one 15-year-old with 688 saved albums who navigates by cover art and
+ * wanted them bigger. Plays inside the page: handing off to the Spotify app was
+ * ruled out, and the Web Playback SDK was proved on his iPad on 2026-08-04.
+ *
+ * Nothing here generates or infers anything about music. Every fact shown comes
+ * from Spotify and is his own. That is the point of the app, not a detail of it.
  */
 const CLIENT_ID = 'bbe6ec90fa9b4ff29d44a47b35d8bcb3';
 const REDIRECT = location.origin + location.pathname;
 const SCOPES = [
-	'streaming',              // required by the Web Playback SDK — without it there is no player
-	'user-read-email',        // the SDK refuses to initialise without these two
-	'user-read-private',
-	'user-read-playback-state',
-	'user-modify-playback-state',
-	'user-library-read'       // his saved albums
+	'streaming', 'user-read-email', 'user-read-private',
+	'user-read-playback-state', 'user-modify-playback-state', 'user-library-read'
 ].join(' ');
-
-// Own prefix: every app on themikemonday.github.io shares one storage bucket.
-const K = { token: 'hatify.token', verifier: 'hatify.pkce', log: 'hatify.log' };
+const K = { verifier: 'hatify.pkce', token: 'hatify.token', view: 'hatify.view', sort: 'hatify.sort', notes: 'hatify.notes', phone: 'hatify.phone' };
 
 const el = (id) => document.getElementById(id);
-const logEl = el('log');
-let lines = [];
+const readLS = (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
+const writeLS = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
 
-function log(msg, kind = '') {
-	const t = new Date().toTimeString().slice(0, 8);
-	lines.push(`${t}  ${msg}`);
-	logEl.innerHTML = lines.map((l, i) => {
-		const k = lines.kinds?.[i] || '';
-		return `<span class="${k}">${l.replace(/</g, '&lt;')}</span>`;
-	}).join('\n');
-	(lines.kinds ||= [])[lines.length - 1] = kind;
-	logEl.scrollTop = logEl.scrollHeight;
-	try { localStorage.setItem(K.log, JSON.stringify(lines)); } catch {}
+let albums = [], view = readLS(K.view, 'grid'), sortKey = readLS(K.sort, 'artist');
+let player = null, deviceId = null, sdkReady = false, nowPlaying = null;
+const trail = [];   // recent events, for the reporter's context and the console
+
+function note(msg, kind = '') {
+	trail.push(`${new Date().toTimeString().slice(0, 8)} ${msg}`);
+	if (trail.length > 60) trail.shift();
+	if (kind === 'bad') console.warn('[Hatify]', msg); else console.log('[Hatify]', msg);
 }
 
-log(`Opened ${navigator.standalone ? 'as a Home Screen app' : 'in the browser'}`);
-log(`${navigator.userAgent.slice(0, 110)}`);
+let statusTimer = null;
+function status(msg, kind = '', action = null) {
+	const s = el('status');
+	note(msg, kind);
+	s.className = 'on ' + kind;
+	s.textContent = msg;
+	if (action) {
+		const b = document.createElement('button');
+		b.textContent = action.label;
+		b.onclick = action.run;
+		s.append(b);
+	}
+	clearTimeout(statusTimer);
+	// Errors stay until dealt with. Anything else is a passing remark.
+	if (kind !== 'bad') statusTimer = setTimeout(() => s.classList.remove('on'), 4000);
+}
+const clearStatus = () => { clearTimeout(statusTimer); el('status').classList.remove('on'); };
 
-/* ---------- PKCE login ---------- */
+/* ---------- Login ---------- */
 
-const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)))
-	.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
 async function login() {
 	const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
-	const bytes = crypto.getRandomValues(new Uint8Array(96));
-	const verifier = Array.from(bytes, (b) => chars[b % chars.length]).join('');
-	sessionStorage.setItem(K.verifier, verifier);
+	const verifier = Array.from(crypto.getRandomValues(new Uint8Array(96)), (b) => chars[b % chars.length]).join('');
+	try { sessionStorage.setItem(K.verifier, verifier); }
+	catch { status('This device will not let Hatify start a login.', 'bad'); return; }
 	const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
-
-	log('Sending you to Spotify to log in...');
 	location.assign('https://accounts.spotify.com/authorize?' + new URLSearchParams({
 		response_type: 'code', client_id: CLIENT_ID, scope: SCOPES,
 		redirect_uri: REDIRECT, code_challenge_method: 'S256', code_challenge: challenge
 	}));
 }
 
-async function handleReturn() {
-	const url = new URL(location.href);
-	const err = url.searchParams.get('error');
-	if (err) {
-		log(`Spotify refused the login: ${err}`, 'bad');
-		if (err === 'access_denied') log('If this says access_denied and you did not cancel, Harry\'s account is probably not on the app\'s user list, or his email is spelled differently there.', 'warn');
-		history.replaceState({}, '', REDIRECT);
-		return null;
+// The library module owns the return from Spotify — it is the only place that saves
+// the refresh token. A second handler here would consume the one-time code first and
+// throw that token away, which is the bug that killed the app after an hour.
+function hasStoredLogin() {
+	try { return !!JSON.parse(localStorage.getItem(K.token) || 'null')?.access; } catch { return false; }
+}
+function needsLogin(why) {
+	albums = [];
+	el('welcome').style.display = '';
+	el('shelf').innerHTML = '';
+	el('sorts').hidden = true;
+	el('count').textContent = '';
+	status(why, 'bad', { label: 'Log in', run: login });
+}
+
+/* ---------- Arranging 688 records ---------- */
+
+const strip = (s) => s.replace(/^(the|a|an)\s+/i, '').trim();
+const year = (a) => parseInt(a.release_date.slice(0, 4), 10) || 0;
+const artistOf = (a) => a.artists[0] || 'Unknown';
+
+const SORTS = {
+	// 688 albums is roughly 250 artists, and 250 is a browsable number. That
+	// collapse is the whole trick, and unlike save-date it does not depend on
+	// Spotify's dates being honest about the early years.
+	artist: {
+		label: 'Artist',
+		compare: (a, b) => strip(artistOf(a)).localeCompare(strip(artistOf(b)), 'en', { sensitivity: 'base' })
+			|| year(a) - year(b),   // a discography in release order reads as an era-line
+		section: (a) => { const c = strip(artistOf(a))[0]?.toUpperCase() || '#'; return /[A-Z]/.test(c) ? c : '#'; }
+	},
+	added: {
+		label: 'Recently saved',
+		compare: (a, b) => (a.added_at < b.added_at ? 1 : a.added_at > b.added_at ? -1 : 0),
+		section: (a) => new Date(a.added_at).toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })
+	},
+	decade: {
+		label: 'Decade',
+		compare: (a, b) => year(b) - year(a) || strip(artistOf(a)).localeCompare(strip(artistOf(b))),
+		section: (a) => (year(a) ? `${Math.floor(year(a) / 10) * 10}s` : 'No year')
 	}
-	const code = url.searchParams.get('code');
-	if (!code) return null;
+};
 
-	const verifier = sessionStorage.getItem(K.verifier);
-	if (!verifier) { log('Lost the login verifier — tap Connect again.', 'bad'); return null; }
-
-	const res = await fetch('https://accounts.spotify.com/api/token', {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-		body: new URLSearchParams({
-			grant_type: 'authorization_code', code, redirect_uri: REDIRECT,
-			client_id: CLIENT_ID, code_verifier: verifier
-		})
-	});
-	history.replaceState({}, '', REDIRECT);
-	if (!res.ok) { log(`Could not exchange the login for a token (${res.status}).`, 'bad'); return null; }
-
-	const t = await res.json();
-	const token = { access: t.access_token, expires: Date.now() + t.expires_in * 1000 - 60000 };
-	localStorage.setItem(K.token, JSON.stringify(token));
-	log('Logged in.', 'ok');
-	return token;
+function arrange() {
+	const s = SORTS[sortKey] || SORTS.artist;
+	const sorted = albums.slice().sort(s.compare);
+	const groups = [];
+	for (const album of sorted) {
+		const name = s.section(album);
+		if (!groups.length || groups[groups.length - 1].name !== name) groups.push({ name, items: [] });
+		groups[groups.length - 1].items.push(album);
+	}
+	return groups;
 }
 
-function storedToken() {
-	try {
-		const t = JSON.parse(localStorage.getItem(K.token));
-		if (t && Date.now() < t.expires) return t;
-	} catch {}
-	return null;
+/* ---------- The shelf ----------
+   688 covers at full size decode to over a gigabyte, which is a guaranteed Safari
+   kill. So the tiles all exist — 688 empty boxes are cheap and keep scrolling and
+   scroll position honest — but an image is only attached while it is near the
+   screen, and detached again once it is not. */
+
+const nearScreen = new IntersectionObserver((entries) => {
+	for (const e of entries) {
+		const box = e.target;
+		if (e.isIntersecting) attachCover(box);
+		else detachCover(box);
+	}
+}, { rootMargin: '600px 0px' });
+
+function attachCover(box) {
+	if (box.dataset.loaded === '1') return;
+	const a = albums[+box.dataset.i];
+	if (!a) return;
+	const img = document.createElement('img');
+	img.alt = '';
+	img.decoding = 'async';
+	img.src = coverURL(a, view === 'grid' ? 640 : 300);
+	img.onerror = () => { img.replaceWith(placeholder()); };
+	box.firstChild?.replaceWith(img);
+	box.dataset.loaded = '1';
+}
+function detachCover(box) {
+	if (box.dataset.loaded !== '1') return;
+	box.firstChild?.replaceWith(placeholder());
+	box.dataset.loaded = '0';
+}
+const placeholder = () => { const d = document.createElement('div'); d.className = 'ph'; return d; };
+
+function coverURL(a, want) {
+	// Spotify serves roughly 640 / 300 / 64. Take the smallest that is still at
+	// least what is being asked for, so a list row does not pull a 640px file.
+	const sized = a.images.filter((i) => i.width).sort((x, y) => x.width - y.width);
+	return (sized.find((i) => i.width >= want) || sized[sized.length - 1] || a.images[0] || {}).url || '';
 }
 
-/* ---------- Spotify calls ---------- */
+function renderShelf() {
+	const shelf = el('shelf');
+	nearScreen.disconnect();
+	shelf.innerHTML = '';
+	shelf.className = view;
+	const index = new Map(albums.map((a, i) => [a.id, i]));
 
-let token = null, player = null, deviceId = null, sdkReady = false;
+	for (const group of arrange()) {
+		const h = document.createElement('div');
+		h.className = 'section-head';
+		h.textContent = `${group.name}  ·  ${group.items.length}`;
+		shelf.append(h);
+
+		const wrap = document.createElement('div');
+		wrap.className = view === 'grid' ? 'grid' : 'list';
+		for (const a of group.items) {
+			const b = document.createElement('button');
+			b.className = 'rec';
+			b.dataset.i = index.get(a.id);
+			b.dataset.loaded = '0';
+			b.append(placeholder());
+			if (view === 'list') {
+				const m = document.createElement('div');
+				m.className = 'meta';
+				m.innerHTML = `<div class="nm"></div><div class="ar"></div>`;
+				m.querySelector('.nm').textContent = a.name;
+				m.querySelector('.ar').textContent = `${a.artists.join(', ')}${year(a) ? ' · ' + year(a) : ''}`;
+				b.append(m);
+			}
+			bindRecord(b, a);
+			wrap.append(b);
+			nearScreen.observe(b);
+		}
+		shelf.append(wrap);
+	}
+	el('count').textContent = `${albums.length}`;
+}
+
+/* Tap plays. Hold pulls the cover out of the sleeve — the answer to "I want them
+   bigger" that costs no screen and no navigation. */
+function bindRecord(button, album) {
+	let timer = null, held = false;
+	const start = () => { held = false; timer = setTimeout(() => { held = true; showPeek(album); }, 260); };
+	const end = (e) => {
+		clearTimeout(timer);
+		if (held) { hidePeek(); e.preventDefault(); return; }
+		play(album);
+	};
+	button.addEventListener('touchstart', start, { passive: true });
+	button.addEventListener('touchend', end);
+	button.addEventListener('touchcancel', () => { clearTimeout(timer); hidePeek(); });
+	button.addEventListener('mousedown', start);
+	button.addEventListener('mouseup', end);
+	button.addEventListener('mouseleave', () => { clearTimeout(timer); if (held) hidePeek(); });
+}
+function showPeek(a) {
+	el('peekArt').src = coverURL(a, 640);
+	el('peekName').textContent = a.name;
+	el('peekArtist').textContent = `${a.artists.join(', ')}${year(a) ? ' · ' + year(a) : ''} · ${a.total_tracks} tracks`;
+	el('peek').classList.add('on');
+}
+const hidePeek = () => el('peek').classList.remove('on');
+
+/* ---------- Playback ---------- */
 
 async function api(path, opts = {}) {
+	const access = await refreshAccessToken();
+	if (!access) { needsLogin('Your Spotify login has run out. Tap to log in again.'); throw new Error('login required'); }
 	const res = await fetch('https://api.spotify.com/v1' + path, {
-		...opts, headers: { Authorization: 'Bearer ' + token.access, 'Content-Type': 'application/json', ...opts.headers }
+		...opts, headers: { Authorization: 'Bearer ' + access, 'Content-Type': 'application/json', ...opts.headers }
 	});
-	if (res.status === 204) return null;
-	if (!res.ok) throw new Error(`${res.status} on ${path}`);
-	return res.headers.get('content-type')?.includes('json') ? res.json() : null;
-}
-
-async function loadAlbums() {
-	try {
-		const data = await api('/me/albums?limit=24');
-		if (!data.items.length) {
-			log('Logged in fine, but this account has no saved albums — so there is nothing to tap.', 'warn');
-			return;
-		}
-		albumCount = data.total;
-		log(`Found ${data.total} saved albums. Showing ${data.items.length}.`, 'ok');
-		el('albumsPanel').hidden = false;
-		el('albums').innerHTML = '';
-		for (const { album } of data.items) {
-			const b = document.createElement('button');
-			b.innerHTML = `<img src="${album.images[0]?.url || ''}" alt="${album.name.replace(/"/g, '&quot;')}" loading="lazy">`;
-			b.onclick = () => play(album);
-			el('albums').append(b);
-		}
-	} catch (e) {
-		log(`Could not load albums: ${e.message}`, 'bad');
-	}
+	if (!res.ok && res.status !== 204) throw new Error(String(res.status));
+	return res.status === 204 ? null : res.headers.get('content-type')?.includes('json') ? res.json() : null;
 }
 
 async function play(album) {
-	if (!deviceId) { log('No player yet — wait for "Player ready".', 'warn'); return; }
+	if (!deviceId) {
+		if (!player && sdkReady) { status('Starting the player...'); startPlayer(); }
+		else status('Player is still starting — try again in a moment.', 'warn');
+		return;
+	}
 	try {
-		// iOS blocks audio that did not follow a tap. This is that tap.
-		if (player.activateElement) { await player.activateElement(); log('Unlocked audio for iOS.'); }
-		await api(`/me/player/play?device_id=${deviceId}`, {
-			method: 'PUT', body: JSON.stringify({ context_uri: album.uri })
-		});
-		log(`Asked Spotify to play "${album.name}" here.`, 'ok');
+		if (player.activateElement) await player.activateElement();   // iOS needs the tap
+		await api(`/me/player/play?device_id=${deviceId}`, { method: 'PUT', body: JSON.stringify({ context_uri: album.uri }) });
+		clearStatus();
 	} catch (e) {
-		log(`Play failed: ${e.message}`, 'bad');
-		if (String(e.message).startsWith('403')) log('A 403 here almost always means the account is not Premium.', 'warn');
+		if (e.message === '403') status('Playing needs Spotify Premium on this account.', 'bad');
+		else if (e.message !== 'login required') status(`Could not play that (${e.message}).`, 'bad');
 	}
 }
 
-/* ---------- The player ---------- */
-
-window.onSpotifyWebPlaybackSDKReady = () => { sdkReady = true; if (token) startPlayer(); };
+window.onSpotifyWebPlaybackSDKReady = () => { sdkReady = true; if (hasStoredLogin()) startPlayer(); };
 
 function startPlayer() {
 	if (!sdkReady || player) return;
-	log('Starting the player...');
 	player = new Spotify.Player({
 		name: 'Hatify',
-		getOAuthToken: (cb) => cb(token.access),
+		getOAuthToken: (cb) => { refreshAccessToken().then((t) => { if (t) cb(t); }).catch(() => {}); },
 		volume: 0.8
 	});
+	player.addListener('ready', ({ device_id }) => { deviceId = device_id; note('player ready'); });
+	player.addListener('not_ready', () => { deviceId = null; note('player offline'); });
+	player.addListener('initialization_error', ({ message }) => status(`Could not start the player: ${message}`, 'bad'));
+	player.addListener('authentication_error', () => needsLogin('Spotify would not accept the login. Tap to log in again.'));
+	player.addListener('account_error', () => status('Playing in the app needs Spotify Premium.', 'bad'));
+	player.addListener('playback_error', ({ message }) => status(`Playback problem: ${message}`, 'warn'));
 
-	player.addListener('ready', ({ device_id }) => {
-		deviceId = device_id;
-		log('Player ready. This page is now a Spotify device.', 'ok');
-	});
-	player.addListener('not_ready', () => log('Player went offline.', 'warn'));
-	player.addListener('initialization_error', ({ message }) => log(`Could not start the player: ${message}`, 'bad'));
-	player.addListener('authentication_error', ({ message }) => log(`Spotify rejected the login: ${message}`, 'bad'));
-	player.addListener('account_error', ({ message }) => log(`Account problem — this needs Premium: ${message}`, 'bad'));
-	player.addListener('playback_error', ({ message }) => log(`Playback error: ${message}`, 'bad'));
-
-	let wasPlaying = null;
 	player.addListener('player_state_changed', (state) => {
-		if (!state) { el('bar').classList.remove('on'); return; }
+		if (!state) { el('bar').classList.remove('on'); nowPlaying = null; return; }
 		const tr = state.track_window.current_track;
 		nowPlaying = `${tr.name} — ${tr.artists.map((a) => a.name).join(', ')}`;
 		el('bar').classList.add('on');
 		el('barArt').src = tr.album.images[0]?.url || '';
 		el('barTitle').textContent = tr.name;
 		el('barArtist').textContent = tr.artists.map((a) => a.name).join(', ');
-		el('toggle').textContent = state.paused ? 'Play' : 'Pause';
-		if (wasPlaying === null) log(`Playing: ${tr.name} — ${tr.artists[0]?.name}`, 'ok');
-		else if (wasPlaying !== !state.paused) log(state.paused ? 'Paused.' : 'Playing.');
-		wasPlaying = !state.paused;
-
-		/* Lock screen: this does NOT currently work, and the reason is worth writing
-		   down so nobody spends an afternoon rediscovering it.
-
-		   The SDK plays audio inside a cross-origin iframe on Spotify's own domain.
-		   iOS takes its Now Playing info from whichever element is actually playing,
-		   which is theirs, not ours — so the lock screen says "Spotify embedded
-		   player" no matter what we set here. Spotify has never exposed a bridge for
-		   it (open since 2018). Mike saw exactly this on 2026-08-04; playback itself
-		   was unaffected.
-
-		   Kept because it costs nothing, is correct the moment Spotify ships a
-		   bridge, and marks the spot if we ever try the silent-audio-element trick. */
+		el('toggle').textContent = state.paused ? '▶' : '⏸';
+		/* The lock screen will say "Spotify embedded player", not the record. The SDK
+		   plays inside a cross-origin iframe and iOS reads Now Playing from whatever
+		   element is actually playing, which is Spotify's. There is no bridge for it —
+		   asked for since 2018. Mike saw this on 2026-08-04. Setting it anyway costs
+		   nothing and is correct the day Spotify ships one. */
 		if ('mediaSession' in navigator) {
 			navigator.mediaSession.metadata = new MediaMetadata({
 				title: tr.name, artist: tr.artists.map((a) => a.name).join(', '), album: tr.album.name,
 				artwork: tr.album.images.map((i) => ({ src: i.url, sizes: `${i.width}x${i.height}`, type: 'image/jpeg' }))
 			});
-			navigator.mediaSession.setActionHandler('play', () => player.resume());
-			navigator.mediaSession.setActionHandler('pause', () => player.pause());
-			navigator.mediaSession.setActionHandler('nexttrack', () => player.nextTrack());
-			navigator.mediaSession.setActionHandler('previoustrack', () => player.previousTrack());
 		}
 	});
-
-	player.connect().then((ok) => log(ok ? 'Connected to Spotify.' : 'Could not connect to Spotify.', ok ? 'ok' : 'bad'));
+	connectPlayer(0);
 }
 
-// Did the music survive being backgrounded? This is test 2 and 3, recorded automatically.
-document.addEventListener('visibilitychange', async () => {
-	if (document.hidden) { log('— page hidden (locked or switched away) —'); return; }
-	log('— back on screen —');
-	if (!player) return;
-	const state = await player.getCurrentState();
-	if (!state) log('The player is gone. It did NOT survive being backgrounded.', 'bad');
-	else log(state.paused ? 'Survived, but paused.' : 'Survived and still playing.', state.paused ? 'warn' : 'ok');
-});
-
-/* ---------- Reporter ----------
-   The same one Charlie and Archie have, and deliberately the same shape: type it
-   like a text, it saves on this device first so it cannot be lost by a failed
-   send, then it goes to Dad. His reports are the loop that makes the app his. */
-
-const APP_VERSION = 'v0.1 (playback test)';
-const RK = { notes: 'hatify.notes', phone: 'hatify.phone' };
-
-const readJSON = (k, fallback) => { try { return JSON.parse(localStorage.getItem(k)) ?? fallback; } catch { return fallback; } };
-let notes = readJSON(RK.notes, []);
-let dadPhone = localStorage.getItem(RK.phone) || '';
-let nowPlaying = null, albumCount = null;
-
-function reportContext() {
-	const where = navigator.standalone ? 'Home Screen app' : 'Safari';
-	const bits = [APP_VERSION, where];
-	if (albumCount !== null) bits.push(`${albumCount} albums`);
-	bits.push(nowPlaying ? `playing ${nowPlaying}` : 'nothing playing');
-	return bits.join(' · ');
+function connectPlayer(attempt) {
+	player.connect().then((ok) => {
+		if (ok) return;
+		if (attempt < 3) setTimeout(() => connectPlayer(attempt + 1), 2 ** attempt * 1000);
+		else {
+			// A single failed connect used to be permanent: player was already set, so
+			// startPlayer() returned early forever and every tap said "no player".
+			status('Could not reach Spotify. Tap a record to try again.', 'bad');
+			player = null; deviceId = null;
+		}
+	});
 }
+
+/* ---------- Reporter ---------- */
+
+const APP_VERSION = 'v1';
+const readJSON = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+let notes = readJSON(K.notes, []);
+let dadPhone = readLS(K.phone, '');
+
+const reportContext = () => [
+	APP_VERSION, navigator.standalone ? 'Home Screen' : 'Safari',
+	`${albums.length} albums`, `${view}/${sortKey}`,
+	nowPlaying ? `playing ${nowPlaying}` : 'nothing playing'
+].join(' · ');
 
 const isAppleTouch = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-// iOS wants sms:NUMBER&body=..., everything else wants ?body=. Getting this wrong
-// opens Messages with an empty note, which reads as the app losing what he typed.
+// iOS wants sms:NUMBER&body=, everything else wants ?body=. Wrong separator opens
+// Messages empty, which reads as the app having eaten what he wrote.
 const smsUrl = (phone, msg) => 'sms:' + phone.replace(/[^\d+]/g, '') + (isAppleTouch() ? '&' : '?') + 'body=' + encodeURIComponent(msg);
-
 const noteMessage = (n) => `🎧 Hatify\n\n${n.text}\n\n— ${n.context}`;
 
+// Returns whether it was actually handed off. Telling him it reached Dad when it
+// did not is the one failure that would stop him bothering to report again.
 async function sendReport(msg) {
-	if (dadPhone) { location.href = smsUrl(dadPhone, msg); return; }
+	if (dadPhone) { location.href = smsUrl(dadPhone, msg); return true; }
 	if (navigator.share) {
-		try { await navigator.share({ text: msg }); return; }
-		catch (e) { if (e.name === 'AbortError') return; }
+		try { await navigator.share({ text: msg }); return true; }
+		catch (e) { if (e.name === 'AbortError') return false; }
 	}
 	location.href = 'mailto:mm@mikemonday.com?subject=' + encodeURIComponent('Hatify') + '&body=' + encodeURIComponent(msg);
+	return true;
 }
 
 function renderReport() {
@@ -444,16 +1111,46 @@ function renderReport() {
 	el('reportCtx').textContent = reportContext();
 	el('reportPhone').value = dadPhone;
 	const recent = notes.slice(-5).reverse();
-	el('saved').innerHTML = recent.length
-		? `<b>Saved notes (${notes.length})</b>` + recent.map((n) => {
-				const i = notes.indexOf(n);
-				const short = n.text.length > 70 ? n.text.slice(0, 70) + '…' : n.text;
-				return `<div>${n.when.slice(0, 10)} — ${short.replace(/</g, '&lt;')} <button class="mini" data-resend="${i}">↗ send again</button></div>`;
-			}).join('')
-		: '';
-	el('saved').querySelectorAll('[data-resend]').forEach((b) => {
-		b.onclick = () => { const n = notes[+b.dataset.resend]; if (n) sendReport(noteMessage(n)); };
-	});
+	el('saved').innerHTML = recent.length ? `<b>Saved notes (${notes.length})</b>` : '';
+	for (const n of recent) {
+		const d = document.createElement('div');
+		d.textContent = `${n.when.slice(0, 10)} — ${n.text.length > 70 ? n.text.slice(0, 70) + '…' : n.text} `;
+		const b = document.createElement('button');
+		b.className = 'mini'; b.textContent = '↗ send again';
+		b.onclick = () => sendReport(noteMessage(n));
+		d.append(b);
+		el('saved').append(d);
+	}
+}
+
+/* ---------- Wiring ---------- */
+
+el('connect').onclick = login;
+el('toggle').onclick = () => player?.togglePlay();
+el('next').onclick = () => player?.nextTrack();
+el('prev').onclick = () => player?.previousTrack();
+el('peek').onclick = hidePeek;
+
+el('viewToggle').onclick = () => {
+	view = view === 'grid' ? 'list' : 'grid';
+	writeLS(K.view, view);
+	el('viewToggle').textContent = view === 'grid' ? 'List' : 'Covers';
+	el('viewToggle').setAttribute('aria-pressed', String(view === 'list'));
+	renderShelf();
+};
+
+function renderSorts() {
+	const box = el('sorts');
+	box.innerHTML = '';
+	for (const [key, s] of Object.entries(SORTS)) {
+		const b = document.createElement('button');
+		b.className = 'pill';
+		b.textContent = s.label;
+		b.setAttribute('aria-pressed', String(key === sortKey));
+		b.onclick = () => { sortKey = key; writeLS(K.sort, key); renderSorts(); renderShelf(); window.scrollTo(0, 0); };
+		box.append(b);
+	}
+	box.hidden = false;
 }
 
 el('fab').onclick = () => { renderReport(); el('report').hidden = false; el('reportText').focus(); };
@@ -461,7 +1158,7 @@ el('reportClose').onclick = () => { el('report').hidden = true; };
 el('report').onclick = (e) => { if (e.target === el('report')) el('report').hidden = true; };
 el('reportSavePhone').onclick = () => {
 	dadPhone = el('reportPhone').value.trim();
-	localStorage.setItem(RK.phone, dadPhone);
+	writeLS(K.phone, dadPhone);
 	renderReport();
 	el('reportSavePhone').textContent = 'Saved';
 	setTimeout(() => { el('reportSavePhone').textContent = 'Save number'; }, 2000);
@@ -469,36 +1166,63 @@ el('reportSavePhone').onclick = () => {
 el('reportSend').onclick = async () => {
 	const text = el('reportText').value.trim();
 	if (!text) { el('reportText').focus(); return; }
-	// Save before sending: if the share sheet is cancelled or Messages never opens,
-	// what he typed is still here rather than gone.
-	const note = { text, context: reportContext(), when: new Date().toISOString() };
-	notes.push(note);
-	try { localStorage.setItem(RK.notes, JSON.stringify(notes)); }
-	catch { log('Could not save the note on this device, sending anyway.', 'warn'); }
+	// Save before sending: a cancelled share sheet must not lose what he typed.
+	const n = { text, context: reportContext(), when: new Date().toISOString() };
+	notes.push(n);
+	try { localStorage.setItem(K.notes, JSON.stringify(notes)); }
+	catch { status('No room left on this device to save the note — sending it anyway.', 'warn'); }
 	el('reportText').value = '';
 	el('report').hidden = true;
-	log('Report saved and sent to Dad.', 'ok');
-	await sendReport(noteMessage(note));
+	const handed = await sendReport(noteMessage(n));
+	status(handed ? 'Sent to Dad.' : 'Saved. Tap 💬 and "send again" whenever you want.', handed ? '' : 'warn');
 };
 
-/* ---------- Wiring ---------- */
+/* ---------- Start ---------- */
 
-el('connect').onclick = login;
-el('toggle').onclick = () => player?.togglePlay();
-el('reset').onclick = () => { localStorage.removeItem(K.token); localStorage.removeItem(K.log); location.replace(REDIRECT); };
-el('copy').onclick = async () => {
-	const text = `Hatify playback test\n${new Date().toString()}\n${navigator.userAgent}\nstandalone: ${!!navigator.standalone}\n\n${lines.join('\n')}`;
-	try { await navigator.clipboard.writeText(text); el('copy').textContent = 'Copied — send it to Mike'; }
-	catch { el('copy').textContent = 'Could not copy — screenshot it instead'; }
-};
+function showLibrary(list) {
+	albums = list;
+	el('welcome').style.display = 'none';
+	renderSorts();
+	renderShelf();
+}
 
 (async function start() {
-	token = (await handleReturn()) || storedToken();
-	if (!token) { log('Not logged in yet. Tap Connect Spotify.'); return; }
-	el('authPanel').hidden = true;
-	el('testPanel').hidden = false;
-	if (sdkReady) startPlayer();
-	loadAlbums();
+	el('viewToggle').textContent = view === 'grid' ? 'List' : 'Covers';
+	el('viewToggle').setAttribute('aria-pressed', String(view === 'list'));
+
+	const returning = new URL(location.href).searchParams.has('code') || new URL(location.href).searchParams.has('error');
+	if (!returning && !hasStoredLogin()) return;   // first run: the welcome screen stands
+
+	el('welcome').style.display = 'none';
+	status('Getting your records...');
+	try {
+		const res = await loadLibrary({
+			onProgress: ({ loaded, total }) => { el('count').textContent = total ? `${loaded} / ${total}` : `${loaded}`; },
+			onFresh: ({ albums: fresh, skipped }) => {
+				showLibrary(fresh);
+				status(`Shelf updated${skipped ? ` · ${skipped} album${skipped > 1 ? 's' : ''} Spotify could not give us` : ''}.`);
+			},
+			onError: (e) => {
+				if (e?.state === 'must_log_in_again') needsLogin('Your Spotify login has run out. Tap to log in again.');
+				else status('Could not check for new records — showing the ones already here.', 'warn');
+			}
+		});
+		showLibrary(res.albums);
+		if (res.cached === false) status('Loaded, but this device had no room to remember the shelf.', 'warn');
+		else clearStatus();
+		if (sdkReady) startPlayer();
+	} catch (e) {
+		if (e?.state === 'must_log_in_again' || e?.requiresLogin) {
+			// Anyone already carrying a login from the playback test has no refresh
+			// token in it, so it cannot be renewed. Send him straight at the button
+			// rather than leaving him on an app that just looks broken.
+			needsLogin('Spotify needs you to log in again.');
+		} else if (e?.code === 'offline') {
+			status('No connection, and nothing saved on this device yet.', 'bad', { label: 'Try again', run: () => location.reload() });
+		} else {
+			status(`Could not load your records: ${e?.message || e}`, 'bad', { label: 'Try again', run: () => location.reload() });
+		}
+	}
 })();
 </script>
 </body>
