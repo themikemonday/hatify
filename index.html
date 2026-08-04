@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Hatify">
+<meta name="theme-color" content="#0d0d0f">
+<title>Hatify — playback test</title>
+<style>
+	:root {
+		--bg: #0d0d0f;
+		--panel: #16161a;
+		--line: #2a2a31;
+		--text: #f2f2f4;
+		--dim: #9a9aa4;
+		--accent: #4ade80;
+		--bad: #f87171;
+		--warn: #fbbf24;
+	}
+	* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+	body {
+		margin: 0;
+		padding: max(1rem, env(safe-area-inset-top)) 1rem calc(6rem + env(safe-area-inset-bottom));
+		background: var(--bg);
+		color: var(--text);
+		font: 16px/1.5 -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif;
+		-webkit-font-smoothing: antialiased;
+	}
+	h1 { font-size: 1.3rem; margin: 0 0 .2rem; letter-spacing: -.02em; }
+	.sub { color: var(--dim); font-size: .9rem; margin: 0 0 1.25rem; }
+
+	button {
+		font: inherit; font-weight: 600; color: #0d0d0f; background: var(--accent);
+		border: 0; border-radius: 10px; padding: .8rem 1.2rem; cursor: pointer;
+	}
+	button.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); font-weight: 500; }
+	button:disabled { opacity: .4; }
+
+	.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 1rem; margin-bottom: 1rem; }
+	.panel h2 { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin: 0 0 .7rem; font-weight: 600; }
+
+	/* The grid Harry asked for: covers only, as big as the screen allows. */
+	#albums { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .8rem; }
+	#albums button { padding: 0; background: none; border: 0; border-radius: 8px; overflow: hidden; display: block; }
+	#albums img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; background: var(--line); }
+
+	#log { font: 12px/1.6 ui-monospace, Menlo, monospace; white-space: pre-wrap; word-break: break-word; color: var(--dim); max-height: 15rem; overflow-y: auto; }
+	#log .ok { color: var(--accent); }
+	#log .bad { color: var(--bad); }
+	#log .warn { color: var(--warn); }
+
+	#bar {
+		position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+		background: rgba(22,22,26,.96); backdrop-filter: blur(12px);
+		border-top: 1px solid var(--line);
+		padding: .7rem 1rem calc(.7rem + env(safe-area-inset-bottom));
+		display: none; align-items: center; gap: .8rem;
+	}
+	#bar.on { display: flex; }
+	#bar img { width: 46px; height: 46px; border-radius: 6px; background: var(--line); }
+	#bar .meta { flex: 1; min-width: 0; }
+	#bar .t { font-weight: 600; font-size: .9rem; }
+	#bar .a { color: var(--dim); font-size: .8rem; }
+	#bar .t, #bar .a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	#bar button { padding: .55rem .9rem; }
+
+	ol.steps { padding-left: 1.2rem; margin: 0; }
+	ol.steps li { margin-bottom: .55rem; }
+	code { background: var(--line); padding: .1rem .35rem; border-radius: 4px; font-size: .85em; }
+</style>
+</head>
+<body>
+
+<h1>Hatify</h1>
+<p class="sub">Playback test — does a record play <em>here</em>, without leaving for Spotify?</p>
+
+<div class="panel" id="authPanel">
+	<h2>Step 1 — connect</h2>
+	<button id="connect">Connect Spotify</button>
+	<p class="sub" style="margin:.8rem 0 0">Use Harry's Spotify account, not Mike's.</p>
+</div>
+
+<div class="panel" id="testPanel" hidden>
+	<h2>Step 2 — the tests that matter</h2>
+	<ol class="steps">
+		<li>Tap a cover below. It should start playing <strong>with this page still on screen</strong>. If Spotify opens, the test has failed.</li>
+		<li><strong>Lock the iPad.</strong> Does the music keep going? Do the lock-screen controls work?</li>
+		<li><strong>Switch to another app</strong> for ten seconds, then come back. Still playing?</li>
+		<li>Add this page to the Home Screen (Share → Add to Home Screen), open it from there, and repeat 1–3. iOS treats that as a separate app with separate storage, so it has to be tested twice.</li>
+	</ol>
+	<p class="sub" style="margin:.9rem 0 0">Then tap <strong>Copy the log</strong> at the bottom and send it to Mike.</p>
+</div>
+
+<div class="panel" id="albumsPanel" hidden>
+	<h2>Step 3 — tap a record</h2>
+	<div id="albums"></div>
+</div>
+
+<div class="panel">
+	<h2>What happened</h2>
+	<div id="log">Waiting.</div>
+	<div style="margin-top:.9rem; display:flex; gap:.5rem; flex-wrap:wrap">
+		<button class="ghost" id="copy">Copy the log</button>
+		<button class="ghost" id="reset">Start again</button>
+	</div>
+</div>
+
+<div id="bar">
+	<img id="barArt" alt="">
+	<div class="meta"><div class="t" id="barTitle">—</div><div class="a" id="barArtist"></div></div>
+	<button id="toggle">Pause</button>
+</div>
+
+<script src="https://sdk.scdn.co/spotify-player.js"></script>
+<script>
+/*
+ * Hatify — playback proof.
+ *
+ * The one question this answers: can a web page on Harry's iPad play a record
+ * itself, or does it have to hand off to the Spotify app? Mike ruled the handoff
+ * out ("the bounce would be utterly crap"), so everything else waits on this.
+ *
+ * The client ID is public on purpose. This uses Authorization Code with PKCE,
+ * where the client ID is not a secret and is designed to ship in the page. There
+ * is no client secret here and there must never be one.
+ */
+const CLIENT_ID = 'bbe6ec90fa9b4ff29d44a47b35d8bcb3';
+const REDIRECT = location.origin + location.pathname;
+const SCOPES = [
+	'streaming',              // required by the Web Playback SDK — without it there is no player
+	'user-read-email',        // the SDK refuses to initialise without these two
+	'user-read-private',
+	'user-read-playback-state',
+	'user-modify-playback-state',
+	'user-library-read'       // his saved albums
+].join(' ');
+
+// Own prefix: every app on themikemonday.github.io shares one storage bucket.
+const K = { token: 'hatify.token', verifier: 'hatify.pkce', log: 'hatify.log' };
+
+const el = (id) => document.getElementById(id);
+const logEl = el('log');
+let lines = [];
+
+function log(msg, kind = '') {
+	const t = new Date().toTimeString().slice(0, 8);
+	lines.push(`${t}  ${msg}`);
+	logEl.innerHTML = lines.map((l, i) => {
+		const k = lines.kinds?.[i] || '';
+		return `<span class="${k}">${l.replace(/</g, '&lt;')}</span>`;
+	}).join('\n');
+	(lines.kinds ||= [])[lines.length - 1] = kind;
+	logEl.scrollTop = logEl.scrollHeight;
+	try { localStorage.setItem(K.log, JSON.stringify(lines)); } catch {}
+}
+
+log(`Opened ${navigator.standalone ? 'as a Home Screen app' : 'in the browser'}`);
+log(`${navigator.userAgent.slice(0, 110)}`);
+
+/* ---------- PKCE login ---------- */
+
+const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)))
+	.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+async function login() {
+	const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+	const bytes = crypto.getRandomValues(new Uint8Array(96));
+	const verifier = Array.from(bytes, (b) => chars[b % chars.length]).join('');
+	sessionStorage.setItem(K.verifier, verifier);
+	const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+
+	log('Sending you to Spotify to log in...');
+	location.assign('https://accounts.spotify.com/authorize?' + new URLSearchParams({
+		response_type: 'code', client_id: CLIENT_ID, scope: SCOPES,
+		redirect_uri: REDIRECT, code_challenge_method: 'S256', code_challenge: challenge
+	}));
+}
+
+async function handleReturn() {
+	const url = new URL(location.href);
+	const err = url.searchParams.get('error');
+	if (err) {
+		log(`Spotify refused the login: ${err}`, 'bad');
+		if (err === 'access_denied') log('If this says access_denied and you did not cancel, Harry\'s account is probably not on the app\'s user list, or his email is spelled differently there.', 'warn');
+		history.replaceState({}, '', REDIRECT);
+		return null;
+	}
+	const code = url.searchParams.get('code');
+	if (!code) return null;
+
+	const verifier = sessionStorage.getItem(K.verifier);
+	if (!verifier) { log('Lost the login verifier — tap Connect again.', 'bad'); return null; }
+
+	const res = await fetch('https://accounts.spotify.com/api/token', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+		body: new URLSearchParams({
+			grant_type: 'authorization_code', code, redirect_uri: REDIRECT,
+			client_id: CLIENT_ID, code_verifier: verifier
+		})
+	});
+	history.replaceState({}, '', REDIRECT);
+	if (!res.ok) { log(`Could not exchange the login for a token (${res.status}).`, 'bad'); return null; }
+
+	const t = await res.json();
+	const token = { access: t.access_token, expires: Date.now() + t.expires_in * 1000 - 60000 };
+	localStorage.setItem(K.token, JSON.stringify(token));
+	log('Logged in.', 'ok');
+	return token;
+}
+
+function storedToken() {
+	try {
+		const t = JSON.parse(localStorage.getItem(K.token));
+		if (t && Date.now() < t.expires) return t;
+	} catch {}
+	return null;
+}
+
+/* ---------- Spotify calls ---------- */
+
+let token = null, player = null, deviceId = null, sdkReady = false;
+
+async function api(path, opts = {}) {
+	const res = await fetch('https://api.spotify.com/v1' + path, {
+		...opts, headers: { Authorization: 'Bearer ' + token.access, 'Content-Type': 'application/json', ...opts.headers }
+	});
+	if (res.status === 204) return null;
+	if (!res.ok) throw new Error(`${res.status} on ${path}`);
+	return res.headers.get('content-type')?.includes('json') ? res.json() : null;
+}
+
+async function loadAlbums() {
+	try {
+		const data = await api('/me/albums?limit=24');
+		if (!data.items.length) {
+			log('Logged in fine, but this account has no saved albums — so there is nothing to tap.', 'warn');
+			return;
+		}
+		log(`Found ${data.total} saved albums. Showing ${data.items.length}.`, 'ok');
+		el('albumsPanel').hidden = false;
+		el('albums').innerHTML = '';
+		for (const { album } of data.items) {
+			const b = document.createElement('button');
+			b.innerHTML = `<img src="${album.images[0]?.url || ''}" alt="${album.name.replace(/"/g, '&quot;')}" loading="lazy">`;
+			b.onclick = () => play(album);
+			el('albums').append(b);
+		}
+	} catch (e) {
+		log(`Could not load albums: ${e.message}`, 'bad');
+	}
+}
+
+async function play(album) {
+	if (!deviceId) { log('No player yet — wait for "Player ready".', 'warn'); return; }
+	try {
+		// iOS blocks audio that did not follow a tap. This is that tap.
+		if (player.activateElement) { await player.activateElement(); log('Unlocked audio for iOS.'); }
+		await api(`/me/player/play?device_id=${deviceId}`, {
+			method: 'PUT', body: JSON.stringify({ context_uri: album.uri })
+		});
+		log(`Asked Spotify to play "${album.name}" here.`, 'ok');
+	} catch (e) {
+		log(`Play failed: ${e.message}`, 'bad');
+		if (String(e.message).startsWith('403')) log('A 403 here almost always means the account is not Premium.', 'warn');
+	}
+}
+
+/* ---------- The player ---------- */
+
+window.onSpotifyWebPlaybackSDKReady = () => { sdkReady = true; if (token) startPlayer(); };
+
+function startPlayer() {
+	if (!sdkReady || player) return;
+	log('Starting the player...');
+	player = new Spotify.Player({
+		name: 'Hatify',
+		getOAuthToken: (cb) => cb(token.access),
+		volume: 0.8
+	});
+
+	player.addListener('ready', ({ device_id }) => {
+		deviceId = device_id;
+		log('Player ready. This page is now a Spotify device.', 'ok');
+	});
+	player.addListener('not_ready', () => log('Player went offline.', 'warn'));
+	player.addListener('initialization_error', ({ message }) => log(`Could not start the player: ${message}`, 'bad'));
+	player.addListener('authentication_error', ({ message }) => log(`Spotify rejected the login: ${message}`, 'bad'));
+	player.addListener('account_error', ({ message }) => log(`Account problem — this needs Premium: ${message}`, 'bad'));
+	player.addListener('playback_error', ({ message }) => log(`Playback error: ${message}`, 'bad'));
+
+	let wasPlaying = null;
+	player.addListener('player_state_changed', (state) => {
+		if (!state) { el('bar').classList.remove('on'); return; }
+		const tr = state.track_window.current_track;
+		el('bar').classList.add('on');
+		el('barArt').src = tr.album.images[0]?.url || '';
+		el('barTitle').textContent = tr.name;
+		el('barArtist').textContent = tr.artists.map((a) => a.name).join(', ');
+		el('toggle').textContent = state.paused ? 'Play' : 'Pause';
+		if (wasPlaying === null) log(`Playing: ${tr.name} — ${tr.artists[0]?.name}`, 'ok');
+		else if (wasPlaying !== !state.paused) log(state.paused ? 'Paused.' : 'Playing.');
+		wasPlaying = !state.paused;
+
+		// Lock-screen and Control Centre buttons.
+		if ('mediaSession' in navigator) {
+			navigator.mediaSession.metadata = new MediaMetadata({
+				title: tr.name, artist: tr.artists.map((a) => a.name).join(', '), album: tr.album.name,
+				artwork: tr.album.images.map((i) => ({ src: i.url, sizes: `${i.width}x${i.height}`, type: 'image/jpeg' }))
+			});
+			navigator.mediaSession.setActionHandler('play', () => player.resume());
+			navigator.mediaSession.setActionHandler('pause', () => player.pause());
+			navigator.mediaSession.setActionHandler('nexttrack', () => player.nextTrack());
+			navigator.mediaSession.setActionHandler('previoustrack', () => player.previousTrack());
+		}
+	});
+
+	player.connect().then((ok) => log(ok ? 'Connected to Spotify.' : 'Could not connect to Spotify.', ok ? 'ok' : 'bad'));
+}
+
+// Did the music survive being backgrounded? This is test 2 and 3, recorded automatically.
+document.addEventListener('visibilitychange', async () => {
+	if (document.hidden) { log('— page hidden (locked or switched away) —'); return; }
+	log('— back on screen —');
+	if (!player) return;
+	const state = await player.getCurrentState();
+	if (!state) log('The player is gone. It did NOT survive being backgrounded.', 'bad');
+	else log(state.paused ? 'Survived, but paused.' : 'Survived and still playing.', state.paused ? 'warn' : 'ok');
+});
+
+/* ---------- Wiring ---------- */
+
+el('connect').onclick = login;
+el('toggle').onclick = () => player?.togglePlay();
+el('reset').onclick = () => { localStorage.removeItem(K.token); localStorage.removeItem(K.log); location.replace(REDIRECT); };
+el('copy').onclick = async () => {
+	const text = `Hatify playback test\n${new Date().toString()}\n${navigator.userAgent}\nstandalone: ${!!navigator.standalone}\n\n${lines.join('\n')}`;
+	try { await navigator.clipboard.writeText(text); el('copy').textContent = 'Copied — send it to Mike'; }
+	catch { el('copy').textContent = 'Could not copy — screenshot it instead'; }
+};
+
+(async function start() {
+	token = (await handleReturn()) || storedToken();
+	if (!token) { log('Not logged in yet. Tap Connect Spotify.'); return; }
+	el('authPanel').hidden = true;
+	el('testPanel').hidden = false;
+	if (sdkReady) startPlayer();
+	loadAlbums();
+})();
+</script>
+</body>
+</html>
