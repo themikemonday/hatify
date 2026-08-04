@@ -69,6 +69,41 @@
 	ol.steps { padding-left: 1.2rem; margin: 0; }
 	ol.steps li { margin-bottom: .55rem; }
 	code { background: var(--line); padding: .1rem .35rem; border-radius: 4px; font-size: .85em; }
+
+	/* Reporter — the same one Charlie and Archie have. */
+	#fab {
+		position: fixed; right: 1rem; bottom: calc(1rem + env(safe-area-inset-bottom)); z-index: 20;
+		width: 54px; height: 54px; border-radius: 50%; padding: 0; font-size: 1.5rem;
+		background: var(--panel); border: 1px solid var(--line); color: var(--text);
+		box-shadow: 0 4px 16px rgba(0,0,0,.5);
+	}
+	#bar.on ~ #fab { bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
+	#report[hidden] { display: none; }
+	#report {
+		position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.6);
+		display: flex; align-items: flex-end; justify-content: center;
+	}
+	#report .sheet {
+		background: var(--panel); border-top: 1px solid var(--line); width: 100%; max-width: 34rem;
+		border-radius: 16px 16px 0 0; padding: 1.1rem 1.1rem calc(1.1rem + env(safe-area-inset-bottom));
+		max-height: 88vh; overflow-y: auto;
+	}
+	#report h2 { font-size: 1.05rem; margin: 0 0 .4rem; }
+	#report textarea {
+		width: 100%; min-height: 7rem; background: var(--bg); color: var(--text);
+		border: 1px solid var(--line); border-radius: 10px; padding: .7rem; font: inherit; resize: vertical;
+	}
+	#report .row { display: flex; gap: .5rem; margin-top: .8rem; flex-wrap: wrap; }
+	#report details { margin-top: 1rem; border-top: 1px solid var(--line); padding-top: .8rem; }
+	#report summary { cursor: pointer; color: var(--dim); font-size: .88rem; }
+	#report input[type=tel] {
+		width: 100%; margin-top: .6rem; background: var(--bg); color: var(--text);
+		border: 1px solid var(--line); border-radius: 10px; padding: .7rem; font: inherit;
+	}
+	#saved { margin-top: 1rem; font-size: .85rem; color: var(--dim); }
+	#saved > div { padding: .4rem 0; border-top: 1px solid var(--line); }
+	button.mini { font-size: .75rem; padding: .25rem .5rem; background: transparent; color: var(--accent); border: 1px solid var(--line); border-radius: 6px; }
+	.ctx { font-size: .75rem; color: var(--dim); margin-top: .5rem; word-break: break-word; }
 </style>
 </head>
 <body>
@@ -111,6 +146,28 @@
 	<img id="barArt" alt="">
 	<div class="meta"><div class="t" id="barTitle">—</div><div class="a" id="barArtist"></div></div>
 	<button id="toggle">Pause</button>
+</div>
+
+<button id="fab" title="Tell Dad what's broken or rubbish">💬</button>
+
+<div id="report" hidden>
+	<div class="sheet">
+		<h2>Tell Dad</h2>
+		<p class="sub" id="reportIntro" style="margin:0 0 .7rem"></p>
+		<textarea id="reportText" placeholder="What's broken, wrong, or just annoying?"></textarea>
+		<div class="ctx" id="reportCtx"></div>
+		<div class="row">
+			<button id="reportSend">Send</button>
+			<button class="ghost" id="reportClose">Not now</button>
+		</div>
+		<div id="saved"></div>
+		<details>
+			<summary>Direct-to-Dad setup</summary>
+			<p class="sub" style="margin:.6rem 0 0">Put Dad's mobile number in once and Send opens Messages straight to him. It stays on this device.</p>
+			<input type="tel" id="reportPhone" placeholder="e.g. +61 4XX XXX XXX" autocomplete="tel">
+			<div class="row"><button class="ghost" id="reportSavePhone">Save number</button></div>
+		</details>
+	</div>
 </div>
 
 <script src="https://sdk.scdn.co/spotify-player.js"></script>
@@ -239,6 +296,7 @@ async function loadAlbums() {
 			log('Logged in fine, but this account has no saved albums — so there is nothing to tap.', 'warn');
 			return;
 		}
+		albumCount = data.total;
 		log(`Found ${data.total} saved albums. Showing ${data.items.length}.`, 'ok');
 		el('albumsPanel').hidden = false;
 		el('albums').innerHTML = '';
@@ -295,6 +353,7 @@ function startPlayer() {
 	player.addListener('player_state_changed', (state) => {
 		if (!state) { el('bar').classList.remove('on'); return; }
 		const tr = state.track_window.current_track;
+		nowPlaying = `${tr.name} — ${tr.artists.map((a) => a.name).join(', ')}`;
 		el('bar').classList.add('on');
 		el('barArt').src = tr.album.images[0]?.url || '';
 		el('barTitle').textContent = tr.name;
@@ -304,7 +363,18 @@ function startPlayer() {
 		else if (wasPlaying !== !state.paused) log(state.paused ? 'Paused.' : 'Playing.');
 		wasPlaying = !state.paused;
 
-		// Lock-screen and Control Centre buttons.
+		/* Lock screen: this does NOT currently work, and the reason is worth writing
+		   down so nobody spends an afternoon rediscovering it.
+
+		   The SDK plays audio inside a cross-origin iframe on Spotify's own domain.
+		   iOS takes its Now Playing info from whichever element is actually playing,
+		   which is theirs, not ours — so the lock screen says "Spotify embedded
+		   player" no matter what we set here. Spotify has never exposed a bridge for
+		   it (open since 2018). Mike saw exactly this on 2026-08-04; playback itself
+		   was unaffected.
+
+		   Kept because it costs nothing, is correct the moment Spotify ships a
+		   bridge, and marks the spot if we ever try the silent-audio-element trick. */
 		if ('mediaSession' in navigator) {
 			navigator.mediaSession.metadata = new MediaMetadata({
 				title: tr.name, artist: tr.artists.map((a) => a.name).join(', '), album: tr.album.name,
@@ -329,6 +399,87 @@ document.addEventListener('visibilitychange', async () => {
 	if (!state) log('The player is gone. It did NOT survive being backgrounded.', 'bad');
 	else log(state.paused ? 'Survived, but paused.' : 'Survived and still playing.', state.paused ? 'warn' : 'ok');
 });
+
+/* ---------- Reporter ----------
+   The same one Charlie and Archie have, and deliberately the same shape: type it
+   like a text, it saves on this device first so it cannot be lost by a failed
+   send, then it goes to Dad. His reports are the loop that makes the app his. */
+
+const APP_VERSION = 'v0.1 (playback test)';
+const RK = { notes: 'hatify.notes', phone: 'hatify.phone' };
+
+const readJSON = (k, fallback) => { try { return JSON.parse(localStorage.getItem(k)) ?? fallback; } catch { return fallback; } };
+let notes = readJSON(RK.notes, []);
+let dadPhone = localStorage.getItem(RK.phone) || '';
+let nowPlaying = null, albumCount = null;
+
+function reportContext() {
+	const where = navigator.standalone ? 'Home Screen app' : 'Safari';
+	const bits = [APP_VERSION, where];
+	if (albumCount !== null) bits.push(`${albumCount} albums`);
+	bits.push(nowPlaying ? `playing ${nowPlaying}` : 'nothing playing');
+	return bits.join(' · ');
+}
+
+const isAppleTouch = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+// iOS wants sms:NUMBER&body=..., everything else wants ?body=. Getting this wrong
+// opens Messages with an empty note, which reads as the app losing what he typed.
+const smsUrl = (phone, msg) => 'sms:' + phone.replace(/[^\d+]/g, '') + (isAppleTouch() ? '&' : '?') + 'body=' + encodeURIComponent(msg);
+
+const noteMessage = (n) => `🎧 Hatify\n\n${n.text}\n\n— ${n.context}`;
+
+async function sendReport(msg) {
+	if (dadPhone) { location.href = smsUrl(dadPhone, msg); return; }
+	if (navigator.share) {
+		try { await navigator.share({ text: msg }); return; }
+		catch (e) { if (e.name === 'AbortError') return; }
+	}
+	location.href = 'mailto:mm@mikemonday.com?subject=' + encodeURIComponent('Hatify') + '&body=' + encodeURIComponent(msg);
+}
+
+function renderReport() {
+	el('reportIntro').textContent = dadPhone
+		? `Type it like a text — Send opens Messages straight to Dad (…${dadPhone.replace(/\D/g, '').slice(-4)}), and a copy stays here.`
+		: 'Type it like a text message. It saves here first so it can\'t get lost, then sends to Dad.';
+	el('reportCtx').textContent = reportContext();
+	el('reportPhone').value = dadPhone;
+	const recent = notes.slice(-5).reverse();
+	el('saved').innerHTML = recent.length
+		? `<b>Saved notes (${notes.length})</b>` + recent.map((n) => {
+				const i = notes.indexOf(n);
+				const short = n.text.length > 70 ? n.text.slice(0, 70) + '…' : n.text;
+				return `<div>${n.when.slice(0, 10)} — ${short.replace(/</g, '&lt;')} <button class="mini" data-resend="${i}">↗ send again</button></div>`;
+			}).join('')
+		: '';
+	el('saved').querySelectorAll('[data-resend]').forEach((b) => {
+		b.onclick = () => { const n = notes[+b.dataset.resend]; if (n) sendReport(noteMessage(n)); };
+	});
+}
+
+el('fab').onclick = () => { renderReport(); el('report').hidden = false; el('reportText').focus(); };
+el('reportClose').onclick = () => { el('report').hidden = true; };
+el('report').onclick = (e) => { if (e.target === el('report')) el('report').hidden = true; };
+el('reportSavePhone').onclick = () => {
+	dadPhone = el('reportPhone').value.trim();
+	localStorage.setItem(RK.phone, dadPhone);
+	renderReport();
+	el('reportSavePhone').textContent = 'Saved';
+	setTimeout(() => { el('reportSavePhone').textContent = 'Save number'; }, 2000);
+};
+el('reportSend').onclick = async () => {
+	const text = el('reportText').value.trim();
+	if (!text) { el('reportText').focus(); return; }
+	// Save before sending: if the share sheet is cancelled or Messages never opens,
+	// what he typed is still here rather than gone.
+	const note = { text, context: reportContext(), when: new Date().toISOString() };
+	notes.push(note);
+	try { localStorage.setItem(RK.notes, JSON.stringify(notes)); }
+	catch { log('Could not save the note on this device, sending anyway.', 'warn'); }
+	el('reportText').value = '';
+	el('report').hidden = true;
+	log('Report saved and sent to Dad.', 'ok');
+	await sendReport(noteMessage(note));
+};
 
 /* ---------- Wiring ---------- */
 
