@@ -50,13 +50,20 @@
 	   3 up in portrait puts a cover at roughly 49mm, about double Spotify's linear
 	   size, which is the actual complaint being answered. */
 	.section-head {
-		position: sticky; top: 0; z-index: 4;
+		/* Below the app bar, not under it. */
+		position: sticky; top: calc(2.6rem + env(safe-area-inset-top)); z-index: 4;
 		background: linear-gradient(var(--bg) 70%, transparent);
 		padding: 1.1rem 0 .5rem; font-size: .8rem; font-weight: 700;
 		letter-spacing: .1em; text-transform: uppercase; color: var(--dim);
 	}
-	.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .7rem; }
-	@media (min-width: 700px) { .grid { grid-template-columns: repeat(4, 1fr); } }
+	/* Cover size is Harry's to set, not mine to guess at. auto-fill means the count
+	   falls out of the screen width instead of being hardcoded per orientation. */
+	.view-grid { --cover: 300px; }
+	.view-grid[data-size="s"] { --cover: 150px; }
+	.view-grid[data-size="m"] { --cover: 220px; }
+	.view-grid[data-size="l"] { --cover: 300px; }
+	.view-grid[data-size="xl"] { --cover: 440px; }
+	.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(var(--cover), 46vw), 1fr)); gap: .7rem; }
 	.grid .rec { border-radius: 6px; overflow: hidden; }
 	.grid .rec img, .grid .rec .ph { width: 100%; aspect-ratio: 1; display: block; object-fit: cover; }
 
@@ -150,6 +157,7 @@
 <header>
 	<h1>Hatify</h1>
 	<span class="count" id="count"></span>
+	<button class="pill" id="sizeToggle">Size</button>
 	<button class="pill" id="viewToggle" aria-pressed="false">List</button>
 </header>
 <div id="sorts" hidden></div>
@@ -784,13 +792,15 @@ const SCOPES = [
 	'streaming', 'user-read-email', 'user-read-private',
 	'user-read-playback-state', 'user-modify-playback-state', 'user-library-read'
 ].join(' ');
-const K = { verifier: 'hatify.pkce', token: 'hatify.token', view: 'hatify.view', sort: 'hatify.sort', notes: 'hatify.notes', phone: 'hatify.phone' };
+const K = { verifier: 'hatify.pkce', token: 'hatify.token', view: 'hatify.view', sort: 'hatify.sort', size: 'hatify.size', notes: 'hatify.notes', phone: 'hatify.phone' };
+const SIZES = ['s', 'm', 'l', 'xl'];
+const SIZE_LABEL = { s: 'Small', m: 'Medium', l: 'Big', xl: 'Huge' };
 
 const el = (id) => document.getElementById(id);
 const readLS = (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
 const writeLS = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
 
-let albums = [], view = readLS(K.view, 'grid'), sortKey = readLS(K.sort, 'artist');
+let albums = [], view = readLS(K.view, 'grid'), sortKey = readLS(K.sort, 'artist'), size = readLS(K.size, 'l');
 let player = null, deviceId = null, sdkReady = false, nowPlaying = null;
 const trail = [];   // recent events, for the reporter's context and the console
 
@@ -933,7 +943,11 @@ function renderShelf() {
 	const shelf = el('shelf');
 	nearScreen.disconnect();
 	shelf.innerHTML = '';
-	shelf.className = view;
+	// NOT `view` — that put class "grid" on the shelf itself, so the shelf became a
+	// 4-column grid and laid the section headings and the inner grids out as its own
+	// cells, side by side. Shipped 2026-08-04 and obvious the moment anyone looked.
+	shelf.className = 'view-' + view;
+	shelf.dataset.size = size;
 	const index = new Map(albums.map((a, i) => [a.id, i]));
 
 	for (const group of arrange()) {
@@ -1131,11 +1145,23 @@ el('next').onclick = () => player?.nextTrack();
 el('prev').onclick = () => player?.previousTrack();
 el('peek').onclick = hidePeek;
 
+function paintSizeToggle() {
+	el('sizeToggle').textContent = SIZE_LABEL[size];
+	el('sizeToggle').hidden = view !== 'grid';
+}
+el('sizeToggle').onclick = () => {
+	size = SIZES[(SIZES.indexOf(size) + 1) % SIZES.length];
+	writeLS(K.size, size);
+	paintSizeToggle();
+	el('shelf').dataset.size = size;   // CSS variable does the rest; no re-render needed
+};
+
 el('viewToggle').onclick = () => {
 	view = view === 'grid' ? 'list' : 'grid';
 	writeLS(K.view, view);
 	el('viewToggle').textContent = view === 'grid' ? 'List' : 'Covers';
 	el('viewToggle').setAttribute('aria-pressed', String(view === 'list'));
+	paintSizeToggle();
 	renderShelf();
 };
 
@@ -1189,6 +1215,7 @@ function showLibrary(list) {
 (async function start() {
 	el('viewToggle').textContent = view === 'grid' ? 'List' : 'Covers';
 	el('viewToggle').setAttribute('aria-pressed', String(view === 'list'));
+	paintSizeToggle();
 
 	const returning = new URL(location.href).searchParams.has('code') || new URL(location.href).searchParams.has('error');
 	if (!returning && !hasStoredLogin()) return;   // first run: the welcome screen stands
