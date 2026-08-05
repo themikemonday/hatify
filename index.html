@@ -80,7 +80,7 @@
 	.ph { background: var(--line); }
 
 	#status {
-		position: fixed; left: .8rem; right: .8rem; bottom: calc(var(--bar-h) + .6rem); z-index: 25;
+		position: fixed; left: .8rem; right: .8rem; bottom: calc(var(--bar-h) + .6rem); z-index: 46;
 		background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
 		padding: .6rem .8rem; font-size: .85rem; display: none;
 	}
@@ -89,8 +89,11 @@
 	#status.warn { border-color: var(--warn); }
 	#status button { color: var(--accent); font-weight: 600; margin-left: .5rem; }
 
+	/* Above the record page. Harry: "When you open the album tracklist it doesn't
+	   have the playing button part visible so you don't know if it's playing until
+	   you hear it." The transport is the one thing that should never be covered. */
 	#bar {
-		position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+		position: fixed; left: 0; right: 0; bottom: 0; z-index: 45;
 		background: rgba(22,22,26,.97); backdrop-filter: blur(14px);
 		border-top: 1px solid var(--line);
 		padding: .6rem .8rem calc(.6rem + env(safe-area-inset-bottom));
@@ -121,7 +124,7 @@
 	   Answers "I want them bigger" without a detail screen, a back button, or
 	   losing your place in 688 records. */
 	#peek {
-		position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.86);
+		position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.86);
 		display: none; flex-direction: column; align-items: center; justify-content: center;
 		padding: 1.5rem; gap: 1rem;
 	}
@@ -137,13 +140,13 @@
 	#connect { background: var(--accent); color: #0d0d0f; font-weight: 600; padding: .85rem 1.3rem; border-radius: 10px; }
 
 	#fab {
-		position: fixed; right: .8rem; bottom: calc(var(--bar-h) + .6rem); z-index: 20;
+		position: fixed; right: .8rem; bottom: calc(var(--bar-h) + .6rem); z-index: 42;
 		width: 50px; height: 50px; border-radius: 50%; font-size: 1.35rem;
 		background: var(--panel); border: 1px solid var(--line);
 		box-shadow: 0 4px 16px rgba(0,0,0,.5);
 	}
 	#report[hidden] { display: none; }
-	#report { position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.6); display: flex; align-items: flex-end; justify-content: center; }
+	#report { position: fixed; inset: 0; z-index: 55; background: rgba(0,0,0,.6); display: flex; align-items: flex-end; justify-content: center; }
 	#report .sheet {
 		background: var(--panel); width: 100%; max-width: 34rem; border-radius: 16px 16px 0 0;
 		border-top: 1px solid var(--line); padding: 1.1rem 1.1rem calc(1.1rem + env(safe-area-inset-bottom));
@@ -167,7 +170,7 @@
 	button.mini { font-size: .74rem; padding: .22rem .5rem; color: var(--accent); border: 1px solid var(--line); border-radius: 6px; }
 
 	#settings[hidden], #album[hidden] { display: none; }
-	#settings { position: fixed; inset: 0; z-index: 35; background: rgba(0,0,0,.65); display: flex; align-items: flex-end; justify-content: center; }
+	#settings { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.65); display: flex; align-items: flex-end; justify-content: center; }
 	/* A record gets a page of its own, not a panel over the shelf — Harry asked for
 	   that, and he is right: this is the thing he came to look at, not an aside. */
 	#album {
