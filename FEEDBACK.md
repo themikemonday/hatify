@@ -22,9 +22,8 @@ Not built yet — next, alongside search.
 Half done, and the other half is a plain no. ⚙ in the top corner now holds volume,
 shuffle and repeat. **There is no EQ and there cannot be one.** Spotify plays the
 sound inside its own sealed player and nothing in this app can reach it to change
-it. Drawing sliders that moved nothing would have been the easy lie. Asked three
-times, so it is clearly wanted — there is one route to it, and it is written up
-for Harry to decide on rather than decided for him.
+it. Drawing sliders that moved nothing would have been the easy lie. His iPad's own
+EQ, or the one on his headphones, is the real answer, and the panel says so.
 
 **"There are doubles of some albums (e.g. a love supreme) because I have the monophonic edition saved as well… show them as one album and when you click the cover… an option to play a different version."**
 Done. The shelf shows one cover per record; open it and the pressings are there —
