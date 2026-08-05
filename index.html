@@ -40,6 +40,7 @@
 		border: 1px solid var(--line); color: var(--dim); white-space: nowrap;
 	}
 	.pill[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); font-weight: 600; }
+	.pill.dir { margin-left: .5rem; border-style: dashed; color: var(--accent); }
 
 	#sorts, #kinds { display: flex; gap: .4rem; overflow-x: auto; padding: .5rem .8rem; scrollbar-width: none; }
 	#sorts { padding-top: 0; }
@@ -880,7 +881,7 @@ const SCOPES = [
 	'streaming', 'user-read-email', 'user-read-private',
 	'user-read-playback-state', 'user-modify-playback-state', 'user-library-read'
 ].join(' ');
-const K = { verifier: 'hatify.pkce', token: 'hatify.token', view: 'hatify.view', sort: 'hatify.sort', size: 'hatify.size', kind: 'hatify.kind', notes: 'hatify.notes', phone: 'hatify.phone' };
+const K = { verifier: 'hatify.pkce', token: 'hatify.token', view: 'hatify.view', sort: 'hatify.sort', dir: 'hatify.dir', size: 'hatify.size', kind: 'hatify.kind', notes: 'hatify.notes', phone: 'hatify.phone' };
 const SIZES = ['s', 'm', 'l', 'xl'];
 const SIZE_LABEL = { s: 'Small', m: 'Medium', l: 'Big', xl: 'Huge' };
 
@@ -954,27 +955,35 @@ const strip = (s) => s.replace(/^(the|a|an)\s+/i, '').trim();
 const year = (a) => parseInt(a.release_date.slice(0, 4), 10) || 0;
 const artistOf = (a) => a.artists[0] || 'Unknown';
 
+/* Direction is applied to the primary key only. Flipping the tiebreaker too would
+   mean asking for oldest-first records and getting Z-to-A artists inside each
+   decade, which is not what anyone means by reversing a sort. */
+const byName = (a, b) => strip(artistOf(a)).localeCompare(strip(artistOf(b)), 'en', { sensitivity: 'base' });
+
 const SORTS = {
 	// 688 albums is roughly 250 artists, and 250 is a browsable number. That
 	// collapse is the whole trick, and unlike save-date it does not depend on
 	// Spotify's dates being honest about the early years.
 	artist: {
-		label: 'Artist',
-		compare: (a, b) => strip(artistOf(a)).localeCompare(strip(artistOf(b)), 'en', { sensitivity: 'base' })
-			|| year(a) - year(b),   // a discography in release order reads as an era-line
+		label: 'Artist', defaultDir: 'asc', dirs: { asc: 'A → Z', desc: 'Z → A' },
+		compare: (d) => (a, b) => d * byName(a, b) || year(a) - year(b),   // a discography in release order reads as an era-line
 		section: (a) => { const c = strip(artistOf(a))[0]?.toUpperCase() || '#'; return /[A-Z]/.test(c) ? c : '#'; }
 	},
 	added: {
-		label: 'Recently saved',
-		compare: (a, b) => (a.added_at < b.added_at ? 1 : a.added_at > b.added_at ? -1 : 0),
+		label: 'Recently saved', defaultDir: 'desc', dirs: { desc: 'Newest first', asc: 'Oldest first' },
+		compare: (d) => (a, b) => d * (a.added_at < b.added_at ? -1 : a.added_at > b.added_at ? 1 : 0) || byName(a, b),
 		section: (a) => new Date(a.added_at).toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })
 	},
 	decade: {
-		label: 'Decade',
-		compare: (a, b) => year(b) - year(a) || strip(artistOf(a)).localeCompare(strip(artistOf(b))),
+		label: 'Decade', defaultDir: 'desc', dirs: { desc: 'New → old', asc: 'Old → new' },
+		compare: (d) => (a, b) => d * (year(a) - year(b)) || byName(a, b),
 		section: (a) => (year(a) ? `${Math.floor(year(a) / 10) * 10}s` : 'No year')
 	}
 };
+
+// Direction is remembered per sort: he may well want artists A-to-Z and decades
+// newest-first at the same time, and one shared setting would fight itself.
+const dirOf = (key) => readLS(K.dir + '.' + key, SORTS[key]?.defaultDir || 'asc');
 
 /* Spotify has no EP type. An EP arrives tagged "single" with several tracks on it,
    so the split is by track count — the same call a shop makes putting a 5-track
@@ -997,7 +1006,7 @@ function arrange() {
 		const held = one.get(key);
 		if (!held || a.name.length < held.name.length) one.set(key, a);
 	}
-	const sorted = [...one.values()].sort(s.compare);
+	const sorted = [...one.values()].sort(s.compare(dirOf(sortKey) === 'asc' ? 1 : -1));
 	shown = sorted.length;
 	const groups = [];
 	for (const album of sorted) {
@@ -1426,6 +1435,21 @@ function pillRow(box, entries, current, choose) {
 function renderSorts() {
 	pillRow(el('sorts'), Object.entries(SORTS).map(([k, s]) => [k, s.label]), sortKey,
 		(k) => { sortKey = k; writeLS(K.sort, k); renderSorts(); renderShelf(); });
+	// The direction pill belongs to the sort it flips, so it sits at the end of the
+	// same row rather than becoming another control to hunt for.
+	const s = SORTS[sortKey];
+	const dir = dirOf(sortKey);
+	const b = document.createElement('button');
+	b.className = 'pill dir';
+	b.textContent = s.dirs[dir];
+	b.onclick = () => {
+		const next = dir === 'asc' ? 'desc' : 'asc';
+		writeLS(K.dir + '.' + sortKey, next);
+		renderSorts();
+		renderShelf();
+		window.scrollTo(0, 0);
+	};
+	el('sorts').append(b);
 }
 
 function renderKinds() {
