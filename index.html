@@ -166,8 +166,23 @@
 	button.mini { font-size: .74rem; padding: .22rem .5rem; color: var(--accent); border: 1px solid var(--line); border-radius: 6px; }
 
 	#settings[hidden], #album[hidden] { display: none; }
-	#settings, #album { position: fixed; inset: 0; z-index: 35; background: rgba(0,0,0,.65); display: flex; align-items: flex-end; justify-content: center; }
-	#settings .sheet, #album .sheet {
+	#settings { position: fixed; inset: 0; z-index: 35; background: rgba(0,0,0,.65); display: flex; align-items: flex-end; justify-content: center; }
+	/* A record gets a page of its own, not a panel over the shelf — Harry asked for
+	   that, and he is right: this is the thing he came to look at, not an aside. */
+	#album {
+		position: fixed; inset: 0; z-index: 35; background: var(--bg);
+		overflow-y: auto; -webkit-overflow-scrolling: touch;
+	}
+	#album .sheet {
+		background: none; border: 0; border-radius: 0; max-height: none;
+		max-width: 46rem; margin: 0 auto;
+		padding: max(.8rem, env(safe-area-inset-top)) 1rem calc(var(--bar-h) + 1rem);
+	}
+	#albumBack {
+		position: sticky; top: 0; z-index: 2; margin-bottom: .4rem;
+		background: var(--bg); padding: .45rem .9rem;
+	}
+	#settings .sheet {
 		background: var(--panel); width: 100%; max-width: 40rem; border-radius: 16px 16px 0 0;
 		border-top: 1px solid var(--line); padding: 1.1rem 1.1rem calc(1.1rem + env(safe-area-inset-bottom));
 		max-height: 90vh; overflow-y: auto;
@@ -1077,20 +1092,52 @@ function renderShelf() {
 
 /* Tap opens the record — Harry asked for the tracklist, and it is also where the
    different pressings of the same album live. Hold still peeks the cover big. */
+/* Harry, 2026-08-05: "Every single album I touch when I'm scrolling opens."
+   A finger landing on a cover on the way past is not a choice, and with 688
+   records almost every touch is on the way past. Two things have to be true
+   before a touch counts as choosing: the finger did not travel, and the shelf
+   was not already moving under it. The second one matters because grabbing a
+   flicking list to stop it is a touch that never moves at all. */
+let lastScrollAt = 0;
+addEventListener('scroll', () => { lastScrollAt = Date.now(); }, { passive: true, capture: true });
+
 function bindRecord(button, album) {
-	let timer = null, held = false;
-	const start = () => { held = false; timer = setTimeout(() => { held = true; showPeek(album); }, 300); };
+	const SLOP = 8;          // px of travel that still counts as a tap
+	const SETTLE = 250;      // ms after the shelf stops before a touch counts
+	let timer = null, held = false, moved = false, x0 = 0, y0 = 0;
+
+	const start = (e) => {
+		const t = e.touches?.[0];
+		x0 = t ? t.clientX : e.clientX;
+		y0 = t ? t.clientY : e.clientY;
+		moved = false; held = false;
+		if (Date.now() - lastScrollAt < SETTLE) { moved = true; return; }   // still gliding
+		timer = setTimeout(() => { if (!moved) { held = true; showPeek(album); } }, 320);
+	};
+	const move = (e) => {
+		const t = e.touches?.[0];
+		const x = t ? t.clientX : e.clientX, y = t ? t.clientY : e.clientY;
+		if (moved || (Math.abs(x - x0) <= SLOP && Math.abs(y - y0) <= SLOP)) return;
+		moved = true;
+		clearTimeout(timer);
+		if (held) { held = false; hidePeek(); }
+	};
 	const end = (e) => {
 		clearTimeout(timer);
-		if (held) { hidePeek(); e.preventDefault(); return; }
+		if (held) { held = false; hidePeek(); e.preventDefault(); return; }
+		if (moved || Date.now() - lastScrollAt < SETTLE) return;
 		openAlbum(album);
 	};
+	const cancel = () => { clearTimeout(timer); moved = true; if (held) { held = false; hidePeek(); } };
+
 	button.addEventListener('touchstart', start, { passive: true });
+	button.addEventListener('touchmove', move, { passive: true });
 	button.addEventListener('touchend', end);
-	button.addEventListener('touchcancel', () => { clearTimeout(timer); hidePeek(); });
+	button.addEventListener('touchcancel', cancel);
 	button.addEventListener('mousedown', start);
+	button.addEventListener('mousemove', move);
 	button.addEventListener('mouseup', end);
-	button.addEventListener('mouseleave', () => { clearTimeout(timer); if (held) hidePeek(); });
+	button.addEventListener('mouseleave', cancel);
 }
 function showPeek(a) {
 	el('peekArt').src = coverURL(a, 640);
@@ -1121,8 +1168,13 @@ const mmss = (ms) => { const s = Math.round(ms / 1000); return `${Math.floor(s /
 
 let openRecord = null;
 async function openAlbum(album) {
+	const wasOpen = !el('album').hidden;
 	openRecord = album;
 	el('album').hidden = false;
+	// One history entry for "looking at a record" — switching pressings inside it
+	// replaces rather than stacks, so back always returns to the shelf in one go.
+	if (!wasOpen) history.pushState({ hatify: 'album' }, '');
+	el('album').scrollTop = 0;
 	el('albumNote').textContent = '';
 	paintAlbumHead(album);
 	el('tracks').innerHTML = '<p class="sub">Getting the tracklist...</p>';
@@ -1424,9 +1476,16 @@ el('refetch').onclick = async () => {
 	location.reload();
 };
 
-const closeAlbum = () => { el('album').hidden = true; openRecord = null; };
-el('albumBack').onclick = closeAlbum;
-el('album').onclick = (e) => { if (e.target === el('album')) closeAlbum(); };
+/* A page, so the iPad's own back gesture has to work. Opening pushes a history
+   entry; going back — by button or by swipe — closes it. */
+function closeAlbum(fromHistory) {
+	if (el('album').hidden) return;
+	el('album').hidden = true;
+	openRecord = null;
+	if (!fromHistory && history.state?.hatify === 'album') history.back();
+}
+el('albumBack').onclick = () => closeAlbum();
+addEventListener('popstate', () => closeAlbum(true));
 
 el('fab').onclick = () => { renderReport(); el('report').hidden = false; el('reportText').focus(); };
 el('reportClose').onclick = () => { el('report').hidden = true; };
